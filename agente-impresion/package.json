@@ -1,0 +1,15 @@
+{
+  "name": "agente-impresion-autocentro",
+  "version": "0.1.0",
+  "description": "Agente de impresión Electron para AutoCentro (main process con acceso a SumatraPDF + spooler de Windows) + página de test aislada",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "AutoCentro",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}

@@ -1,0 +1,48 @@
+rules_version = '2';
+
+// Reglas de Storage para AutoCentro — MVP de una sola sede.
+//
+// Estructura de carpetas:
+//   /sesiones/{sesionId}/original.<ext>   -> lo sube el celular
+//   /sesiones/{sesionId}/preview.jpg      -> miniatura de la primera página (solo PDF, la
+//                                            genera el celular con pdf.js), para mostrar en
+//                                            la pantalla de la PC junto al QR de pago.
+//   /sesiones/{sesionId}/final.pdf        -> lo sube el agente de la PC (ya convertido)
+//
+// Cualquiera con Firebase Anonymous Auth puede subir el original de SU sesión (el ID de
+// sesión ya funciona como "secreto" porque viene del QR y es un ID largo y aleatorio).
+// Limitamos tamaño (30 MB) y tipos de archivo a PDF/Word/PowerPoint.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Match literal más específico primero: el archivo final convertido no lo puede
+    // tocar el cliente, solo el agente de la PC con el Admin SDK.
+    match /sesiones/{sesionId}/final.pdf {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /sesiones/{sesionId}/preview.jpg {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/jpeg|image/png');
+    }
+
+    // Cualquier otro nombre de archivo bajo la sesión (siempre "original.<ext>" en la
+    // práctica) — Storage Rules no permite mezclar texto literal con un comodín dentro
+    // del mismo segmento de ruta, así que se valida el nombre con .matches() adentro.
+    match /sesiones/{sesionId}/{filename} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && filename.matches('original\\..+')
+                   && request.resource.size < 30 * 1024 * 1024
+                   && request.resource.contentType.matches(
+                        'application/pdf|'
+                        + 'application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|'
+                        + 'application/vnd\\.openxmlformats-officedocument\\.presentationml\\.presentation'
+                      );
+    }
+  }
+}

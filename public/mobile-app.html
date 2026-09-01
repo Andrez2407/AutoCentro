@@ -1,0 +1,897 @@
+<title>Fotocopiadora CE — tu pedido</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f4f7fb;
+    --surface:#ffffff;
+    --surface-2:#eaf1f9;
+    --text:#152233;
+    --text-muted:#5c6c7e;
+    --border:#d7e2ee;
+    --primary:#1d4e89;
+    --primary-dark:#123657;
+    --accent:#2e86ab;
+    --accent-soft:#dceefa;
+    --ok:#1f8a5f;
+    --ok-soft:#dff3ea;
+    --warn:#b3541e;
+    --warn-soft:#fbe9dd;
+    --shadow: 0 1px 2px rgba(21,34,51,.05), 0 8px 24px -12px rgba(21,34,51,.18);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1720; --surface:#16212c; --surface-2:#1c2b39;
+      --text:#e8eef4; --text-muted:#94a7ba; --border:#293c4d;
+      --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
+      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1720; --surface:#16212c; --surface-2:#1c2b39;
+    --text:#e8eef4; --text-muted:#94a7ba; --border:#293c4d;
+    --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
+    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Public Sans", ui-sans-serif, system-ui, sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.brand-name{font-family:"Sora", ui-sans-serif, system-ui, sans-serif; text-wrap:balance; margin:0;}
+  .mono{font-family:"JetBrains Mono", ui-monospace, "SFMono-Regular", monospace; font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+  .shell{max-width:480px; margin:0 auto; padding:0 0 48px;}
+
+  .session-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px;
+    background:var(--primary);
+    color:#fff;
+    padding:10px 18px;
+    font-size:12.5px;
+  }
+  .session-bar .dot{
+    display:inline-block; width:7px; height:7px; border-radius:50%;
+    background:#7ee2b8; margin-right:7px;
+    box-shadow:0 0 0 3px rgba(126,226,184,.25);
+  }
+  .session-bar .expiry{font-family:"JetBrains Mono",monospace; opacity:.9;}
+
+  header.top{
+    display:flex; align-items:center; gap:13px;
+    padding:20px 18px 18px;
+  }
+  .logo-badge{
+    width:42px; height:42px; border-radius:11px;
+    background:linear-gradient(155deg, var(--primary), var(--accent));
+    color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:"Sora", sans-serif; font-weight:700; font-size:16px;
+    flex-shrink:0; box-shadow:var(--shadow);
+  }
+  .brand-name{font-size:17px; font-weight:700;}
+  .brand-sub{font-size:12.5px; color:var(--text-muted); margin-top:2px;}
+
+  .content{padding:0 18px;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:20px;
+    box-shadow:var(--shadow);
+  }
+  .card + .card{margin-top:16px;}
+  .card h2{font-size:14.5px; font-weight:600; margin-bottom:4px;}
+  .card .hint{font-size:12.5px; color:var(--text-muted); margin-bottom:14px;}
+
+  .step-label{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--accent); margin-bottom:6px;
+  }
+
+  .dropzone{
+    border:1.5px dashed var(--border);
+    border-radius:14px;
+    padding:26px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+    background:var(--surface-2);
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--accent); background:var(--accent-soft);}
+  .dropzone svg{opacity:.55; margin-bottom:8px;}
+  .dropzone .dz-title{font-weight:600; font-size:14px;}
+  .dropzone .dz-sub{font-size:12px; color:var(--text-muted); margin-top:4px;}
+  input[type="file"]{display:none;}
+
+  .file-row{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 14px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:12px;
+  }
+  .file-icon{
+    width:36px; height:36px; border-radius:9px;
+    background:var(--primary); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:700; font-family:"Sora",sans-serif;
+    flex-shrink:0;
+  }
+  .file-meta{flex:1; min-width:0;}
+  .file-name{font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .file-status{font-size:11.5px; color:var(--text-muted); margin-top:1px;}
+  .file-remove{border:none; background:none; color:var(--text-muted); cursor:pointer; font-size:18px; line-height:1; padding:4px 6px; border-radius:6px;}
+  .file-remove:hover{background:var(--border); color:var(--text);}
+
+  fieldset{border:none; padding:0; margin:0 0 16px;}
+  fieldset:last-of-type{margin-bottom:0;}
+  legend{font-size:12.5px; font-weight:600; margin-bottom:9px; padding:0;}
+
+  .segmented{display:flex; gap:8px;}
+  .seg-btn{
+    flex:1; border:1px solid var(--border); background:var(--surface); color:var(--text);
+    border-radius:10px; padding:10px 11px; font-size:13px; font-weight:500; cursor:pointer;
+    text-align:left; transition:border-color .12s ease, background .12s ease;
+  }
+  .seg-btn .price-tag{display:block; font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+  .seg-btn.active{border-color:var(--primary); background:var(--accent-soft);}
+  .seg-btn.active .price-tag{color:var(--primary-dark);}
+
+  .field{flex:1; min-width:100px;}
+  .field label{display:block; font-size:12px; color:var(--text-muted); margin-bottom:6px;}
+  .field input[type="number"]{
+    width:100%; border:1px solid var(--border); background:var(--surface); color:var(--text);
+    border-radius:9px; padding:9px 11px; font-size:14px; font-family:"JetBrains Mono", monospace;
+  }
+  .field-row{display:flex; gap:12px;}
+
+  .stepper{display:flex; align-items:center; border:1px solid var(--border); border-radius:9px; overflow:hidden; width:fit-content;}
+  .stepper button{width:34px; height:36px; border:none; background:var(--surface-2); color:var(--text); font-size:16px; cursor:pointer;}
+  .stepper button:hover{background:var(--accent-soft);}
+  .stepper input{width:52px; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); height:36px; font-family:"JetBrains Mono",monospace; font-size:14px; background:var(--surface); color:var(--text);}
+
+  .checkbox-row{display:flex; align-items:center; gap:9px; font-size:13px; cursor:pointer; user-select:none;}
+  .checkbox-row input{width:16px; height:16px; accent-color:var(--primary); flex-shrink:0;}
+
+  .range-fields{margin-top:12px; display:flex; gap:12px; max-height:0; overflow:hidden; opacity:0; transition:max-height .18s ease, opacity .18s ease, margin-top .18s ease;}
+  .range-fields.open{max-height:100px; opacity:1;}
+  .range-error{font-size:11.5px; color:var(--warn); margin-top:6px; display:none;}
+  .range-error.show{display:block;}
+
+  .sum-row{display:flex; justify-content:space-between; align-items:baseline; font-size:13px; padding:7px 0; border-bottom:1px solid var(--border);}
+  .sum-row:last-of-type{border-bottom:none;}
+  .sum-row .label{color:var(--text-muted);}
+  .sum-row .value{font-family:"JetBrains Mono",monospace;}
+  .sum-total{display:flex; justify-content:space-between; align-items:baseline; margin-top:14px; padding-top:14px; border-top:1.5px solid var(--border);}
+  .sum-total .label{font-size:13.5px; font-weight:600;}
+  .sum-total .value{font-family:"JetBrains Mono",monospace; font-size:22px; font-weight:600; color:var(--primary-dark);}
+
+  .btn-primary{
+    width:100%; margin-top:18px; border:none; border-radius:11px; padding:13px 16px;
+    background:var(--primary); color:#fff; font-size:14px; font-weight:600; cursor:pointer;
+    transition:background .12s ease, transform .05s ease;
+  }
+  .btn-primary:hover:not(:disabled){background:var(--primary-dark);}
+  .btn-primary:active:not(:disabled){transform:translateY(1px);}
+  .btn-primary:disabled{opacity:.45; cursor:not-allowed;}
+  .btn-secondary{
+    width:100%; margin-top:10px; border:1px solid var(--border); border-radius:11px; padding:11px 16px;
+    background:transparent; color:var(--text); font-size:13px; font-weight:500; cursor:pointer;
+  }
+  .btn-secondary:hover{background:var(--surface-2);}
+
+  .note{font-size:11.5px; color:var(--text-muted); margin-top:14px; line-height:1.5; padding-top:14px; border-top:1px dashed var(--border);}
+  .note strong{color:var(--text);}
+
+  .ticket{text-align:center;}
+  .ticket .pill{
+    display:inline-flex; align-items:center; gap:6px; background:var(--ok-soft); color:var(--ok);
+    font-size:11.5px; font-weight:600; padding:5px 12px; border-radius:999px; margin-bottom:14px;
+  }
+  .ticket .code{font-family:"JetBrains Mono",monospace; font-size:26px; font-weight:600; letter-spacing:.04em; color:var(--text); margin:4px 0 2px;}
+  .ticket .code-sub{font-size:11.5px; color:var(--text-muted); margin-bottom:16px;}
+  .pay-hint{
+    display:flex; align-items:center; gap:10px; text-align:left;
+    background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px; font-size:12.5px; color:var(--text-muted); margin-top:6px;
+  }
+  .pay-hint svg{flex-shrink:0; color:var(--primary);}
+  .expiry-banner{
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--warn-soft); color:var(--warn);
+    font-size:12px; font-weight:600; padding:6px 13px; border-radius:999px; margin-top:14px;
+  }
+  .ticket-detail{text-align:left; margin-top:18px; padding-top:16px; border-top:1px solid var(--border);}
+
+  [hidden]{display:none !important;}
+</style>
+
+<div class="shell">
+
+  <div class="session-bar">
+    <span><span class="dot"></span>Sesión iniciada desde la pantalla del centro</span>
+    <span class="expiry mono" id="session-timer">9:58</span>
+  </div>
+
+  <header class="top">
+    <div class="logo-badge">CE</div>
+    <div>
+      <div class="brand-name">Centro de Estudiantes</div>
+      <div class="brand-sub">Subí tu archivo, elegí las opciones y pagá desde acá</div>
+    </div>
+  </header>
+
+  <div class="content" id="form-column">
+
+    <div class="card">
+      <span class="step-label">Paso 1</span>
+      <h2>Subí tu archivo</h2>
+      <div class="hint">Aceptamos PDF, Word (.docx) y PowerPoint (.pptx). En PDF contamos las páginas automáticamente.</div>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Subir archivo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <div class="dz-title">Tocá para elegir tu archivo</div>
+        <div class="dz-sub">PDF, DOCX o PPTX · hasta 30&nbsp;MB</div>
+      </div>
+      <input type="file" id="file-input" accept=".pdf,.docx,.pptx">
+
+      <div id="file-row" class="file-row" style="margin-top:14px;" hidden>
+        <div class="file-icon" id="file-icon">PDF</div>
+        <div class="file-meta">
+          <div class="file-name" id="file-name">—</div>
+          <div class="file-status" id="file-status">—</div>
+        </div>
+        <button class="file-remove" id="file-remove" aria-label="Quitar archivo" type="button">✕</button>
+      </div>
+    </div>
+
+    <div class="card" id="options-card" hidden>
+      <span class="step-label">Paso 2</span>
+      <h2>Elegí cómo imprimir</h2>
+      <div class="hint">Todas las impresiones son en blanco y negro.</div>
+
+      <fieldset>
+        <legend>Tipo de impresión</legend>
+        <div class="segmented" role="radiogroup" aria-label="Tipo de impresión">
+          <button type="button" class="seg-btn active" id="btn-simple" role="radio" aria-checked="true">
+            Simple faz<span class="price-tag">$150 / hoja</span>
+          </button>
+          <button type="button" class="seg-btn" id="btn-doble" role="radio" aria-checked="false">
+            Doble faz<span class="price-tag">$250 / hoja</span>
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cantidad de copias</legend>
+        <div class="stepper">
+          <button type="button" id="copies-minus" aria-label="Restar copia">−</button>
+          <input type="text" id="copies-input" class="mono" value="1" inputmode="numeric" aria-label="Cantidad de copias">
+          <button type="button" id="copies-plus" aria-label="Sumar copia">+</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Páginas a imprimir</legend>
+        <label class="checkbox-row">
+          <input type="checkbox" id="range-toggle">
+          Imprimir solo un rango de páginas
+        </label>
+        <div class="range-fields" id="range-fields">
+          <div class="field">
+            <label for="range-from">Desde</label>
+            <input type="number" id="range-from" min="1" class="mono">
+          </div>
+          <div class="field">
+            <label for="range-to">Hasta</label>
+            <input type="number" id="range-to" min="1" class="mono">
+          </div>
+        </div>
+        <div class="range-error" id="range-error">Revisá el rango: tiene que estar dentro del total de páginas del archivo.</div>
+      </fieldset>
+
+      <fieldset id="manual-pages-field" hidden>
+        <legend>Cantidad total de páginas del documento</legend>
+        <div class="field" style="max-width:140px;">
+          <input type="number" id="manual-pages" min="1" class="mono" placeholder="ej: 12">
+        </div>
+        <div class="hint" style="margin-top:8px; margin-bottom:0;">No podemos leer automáticamente la cantidad de páginas de archivos Word o PowerPoint: contanos vos cuántas tiene.</div>
+      </fieldset>
+    </div>
+
+    <div class="card" id="summary-card">
+      <h2>Resumen del pedido</h2>
+      <div class="hint" id="summary-hint">Subí un archivo para ver el precio estimado.</div>
+
+      <div id="summary-body" hidden>
+        <div class="sum-row"><span class="label">Páginas a imprimir</span><span class="value" id="sum-pages">—</span></div>
+        <div class="sum-row"><span class="label">Copias</span><span class="value" id="sum-copies">—</span></div>
+        <div class="sum-row"><span class="label">Modalidad</span><span class="value" id="sum-mode">—</span></div>
+        <div class="sum-row"><span class="label">Hojas físicas totales</span><span class="value" id="sum-sheets">—</span></div>
+        <div class="sum-row"><span class="label">Precio por hoja</span><span class="value" id="sum-price-sheet">—</span></div>
+
+        <div class="sum-total">
+          <span class="label">Total estimado</span>
+          <span class="value" id="sum-total">$0</span>
+        </div>
+
+        <button class="btn-primary" id="btn-confirm" disabled>Confirmar y generar QR de pago</button>
+      </div>
+
+      <div class="note">
+        <strong>Cómo funciona el pago:</strong> al confirmar, la pantalla del centro va a mostrar un código QR por el monto exacto — escaneálo desde ahí con la cámara de tu celular para abrir el pago. Cuando se confirme, esa misma pantalla imprime tu documento.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TICKET (shown after confirming) -->
+  <div class="content">
+    <div class="card ticket" id="ticket-card" hidden>
+      <div class="pill">✓ Pedido enviado</div>
+      <div class="code mono" id="ticket-code">CE-0000</div>
+      <div class="code-sub">Mirá la pantalla del centro: ahí apareció el QR para pagar</div>
+
+      <div class="pay-hint">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="10" rx="1.4"/><path d="M10 17h4M12 14v3"/></svg>
+        <span>Escaneá el código de esa pantalla con la cámara de tu celular</span>
+      </div>
+      <div class="expiry-banner">⏳ Vence en <span class="mono" id="pay-timer">10:00</span></div>
+
+      <div class="ticket-detail">
+        <div class="sum-row"><span class="label">Archivo</span><span class="value" id="tk-file">—</span></div>
+        <div class="sum-row"><span class="label">Páginas / copias</span><span class="value" id="tk-pages">—</span></div>
+        <div class="sum-row"><span class="label">Modalidad</span><span class="value" id="tk-mode">—</span></div>
+        <div class="sum-total">
+          <span class="label">Monto a pagar</span>
+          <span class="value" id="tk-total">$0</span>
+        </div>
+      </div>
+
+      <button class="btn-secondary" id="btn-new-order" type="button">Hacer otro pedido</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-storage-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script><script>
+(function(){
+  "use strict";
+
+  if (window['pdfjsLib']) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+
+  // ============================================================
+  // COMPLETÁ ESTO con la config de tu proyecto de Firebase — el mismo
+  // objeto que en pc-app.html (Firebase console → Configuración del
+  // proyecto → tus apps → Web).
+  // ============================================================
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCw26YY9Y1HYbqIzw427CHaKAajno0xWk8",
+    authDomain: "autocentro-14a94.firebaseapp.com",
+    projectId: "autocentro-14a94",
+    storageBucket: "autocentro-14a94.firebasestorage.app",
+    messagingSenderId: "476529422320",
+    appId: "1:476529422320:web:3eccc3259b6dddd0513735"
+  };
+  const CENTRO_ID = "principal";
+
+  // ---- Sesión real (viene del QR: ?s=<sesionId>&t=<token>) ----
+  const params = new URLSearchParams(location.search);
+  const sesionId = params.get('s');
+  const sesionToken = params.get('t');
+  const isFirebaseConfigured = FIREBASE_CONFIG.apiKey !== 'TODO';
+  const hasSession = Boolean(sesionId && sesionToken);
+
+  let db = null, storage = null;
+  let sessionValid = false;
+  let confirmado = false; // true en cuanto el usuario aprieta "Confirmar" — evita que una
+                           // subida de archivo lenta pise el estado de vuelta hacia atrás
+
+  // Mientras se confirma la sesión contra Firestore (signInAnonymously + el get()
+  // de validarSesion, los dos async) bloqueamos el formulario. Sin esto, un
+  // usuario rápido podía elegir archivo y confirmar ANTES de que sessionValid
+  // pasara a true — pushTrabajo/pushSesionEstado/subirArchivo son no-ops
+  // silenciosos hasta ese momento, así que el pedido "se enviaba" en el celular
+  // pero nunca le llegaba nada a la pantalla del centro.
+  const SESSION_BAR_HTML_LISTO = '<span><span class="dot"></span>Sesión iniciada desde la pantalla del centro</span><span class="expiry mono" id="session-timer">9:58</span>';
+
+  // OJO: estas dos funciones se llaman antes de que se definan las constantes
+  // formColumn/etc. más abajo en el archivo (necesitamos bloquear el formulario
+  // apenas arranca la página), así que usan getElementById directo en vez de
+  // esas constantes.
+  function bloquearFormularioMientrasValida(){
+    document.querySelector('.session-bar').innerHTML = '<span>Verificando sesión…</span>';
+    const fc = document.getElementById('form-column');
+    fc.style.opacity = '.4';
+    fc.style.pointerEvents = 'none';
+  }
+
+  function desbloquearFormulario(){
+    document.querySelector('.session-bar').innerHTML = SESSION_BAR_HTML_LISTO;
+    const fc = document.getElementById('form-column');
+    fc.style.opacity = '';
+    fc.style.pointerEvents = '';
+  }
+
+  if (isFirebaseConfigured) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    storage = firebase.storage();
+    if (hasSession) bloquearFormularioMientrasValida();
+    firebase.auth().signInAnonymously().then(() => {
+      if (hasSession) validarSesion();
+    }).catch(() => {
+      mostrarErrorSesion('No pudimos conectar. Probá de nuevo desde la pantalla del centro.');
+    });
+  }
+
+  function validarSesion(){
+    db.collection('sesiones').doc(sesionId).get().then((doc) => {
+      const data = doc.data();
+      const vencida = data && data.expires_at && data.expires_at.toMillis() < Date.now();
+      if (!data || data.token_qr !== sesionToken || data.estado === 'expirada' || vencida) {
+        mostrarErrorSesion('Esta sesión ya no es válida. Volvé a escanear el código de la pantalla del centro.');
+        return;
+      }
+      sessionValid = true;
+      desbloquearFormulario();
+      // Apenas confirmamos que la sesión es válida (y no antes, ver el bug de
+      // carrera de más arriba), avisamos a la pantalla del centro que alguien
+      // ya está del otro lado — no hace falta esperar a que elija un archivo.
+      pushSesionEstado('esperando_archivo');
+      iniciarCountdownReal(data.expires_at.toMillis());
+      db.collection('config_centro').doc(CENTRO_ID).get().then((cfgDoc) => {
+        const cfg = cfgDoc.data();
+        if (cfg && cfg.modo_automatico === false) {
+          mostrarErrorSesion('Por ahora hay atención manual — acercate al mostrador.');
+        }
+      });
+    }).catch(() => {
+      mostrarErrorSesion('No pudimos verificar la sesión. Volvé a escanear el código de la pantalla del centro.');
+    });
+  }
+
+  function iniciarCountdownReal(expiresAtMs){
+    const el = document.getElementById('session-timer');
+    if (!el) return;
+    const tick = () => {
+      const msLeft = expiresAtMs - Date.now();
+      if (msLeft <= 0) { el.textContent = '0:00'; return; }
+      const secondsLeft = Math.floor(msLeft / 1000);
+      const m = Math.floor(secondsLeft / 60);
+      const s = secondsLeft % 60;
+      el.textContent = m + ':' + String(s).padStart(2, '0');
+    };
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  function mostrarErrorSesion(mensaje){
+    sessionValid = false;
+    document.querySelector('.session-bar').innerHTML = '<span>⚠ ' + mensaje + '</span>';
+    document.getElementById('form-column').style.opacity = '.4';
+    document.getElementById('form-column').style.pointerEvents = 'none';
+  }
+
+  function trabajoRef(){ return db.collection('trabajos').doc(sesionId); }
+  function sesionRef(){ return db.collection('sesiones').doc(sesionId); }
+
+  function pushTrabajo(patch){
+    if (!isFirebaseConfigured || !hasSession || !sessionValid) return;
+    trabajoRef().set(Object.assign({
+      sesion_id: sesionId,
+      centro_id: CENTRO_ID
+    }, patch), { merge: true });
+  }
+
+  function pushSesionEstado(estado){
+    if (!isFirebaseConfigured || !hasSession || !sessionValid) return;
+    sesionRef().update({ estado: estado, updated_at: firebase.firestore.Timestamp.now() });
+  }
+
+  function subirArchivo(file){
+    if (!isFirebaseConfigured || !hasSession || !sessionValid) return Promise.resolve();
+    const ext = extOf(file.name);
+    const ref = storage.ref('sesiones/' + sesionId + '/original.' + ext);
+    return ref.put(file).then(() => ref.getDownloadURL()).then((url) => {
+      pushTrabajo({ archivo_original_url: url });
+    });
+  }
+
+  const PRICE_SIMPLE = 150;
+  const PRICE_DOBLE = 250;
+
+  const state = {
+    file: null,
+    fileType: null,      // 'pdf' | 'docx' | 'pptx'
+    totalPages: null,
+    mode: 'simple',
+    copies: 1,
+    useRange: false
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  const dropzone = $('dropzone');
+  const fileInput = $('file-input');
+  const fileRow = $('file-row');
+  const fileIcon = $('file-icon');
+  const fileName = $('file-name');
+  const fileStatus = $('file-status');
+  const fileRemove = $('file-remove');
+
+  const optionsCard = $('options-card');
+  const manualPagesField = $('manual-pages-field');
+  const manualPagesInput = $('manual-pages');
+
+  const btnSimple = $('btn-simple');
+  const btnDoble = $('btn-doble');
+
+  const copiesInput = $('copies-input');
+  const copiesMinus = $('copies-minus');
+  const copiesPlus = $('copies-plus');
+
+  const rangeToggle = $('range-toggle');
+  const rangeFields = $('range-fields');
+  const rangeFrom = $('range-from');
+  const rangeTo = $('range-to');
+  const rangeError = $('range-error');
+
+  const summaryHint = $('summary-hint');
+  const summaryBody = $('summary-body');
+  const sumPages = $('sum-pages');
+  const sumCopies = $('sum-copies');
+  const sumMode = $('sum-mode');
+  const sumSheets = $('sum-sheets');
+  const sumPriceSheet = $('sum-price-sheet');
+  const sumTotal = $('sum-total');
+  const btnConfirm = $('btn-confirm');
+
+  const formColumn = $('form-column');
+  const ticketCard = $('ticket-card');
+
+  function fmtMoney(n){ return '$' + n.toLocaleString('es-AR'); }
+  function extOf(fileNameStr){
+    const parts = fileNameStr.toLowerCase().split('.');
+    return parts.length > 1 ? parts.pop() : '';
+  }
+
+  // ---- Session timer ----
+  // Sin sesión real (vista de prueba): cuenta regresiva de ejemplo.
+  // Con sesión real: el tiempo restante sale de sesiones/{id}.expires_at (ver validarSesion).
+  if (!hasSession) {
+    (function sessionCountdown(){
+      let secondsLeft = 9 * 60 + 58;
+      const el = $('session-timer');
+      setInterval(() => {
+        if (secondsLeft <= 0) return;
+        secondsLeft -= 1;
+        const m = Math.floor(secondsLeft / 60);
+        const s = secondsLeft % 60;
+        el.textContent = m + ':' + String(s).padStart(2, '0');
+      }, 1000);
+    })();
+  }
+
+  // ---- Dropzone interactions ----
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  ['dragenter','dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) handleFile(f);
+  });
+  fileRemove.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetFile();
+  });
+
+  function resetFile(){
+    state.file = null;
+    state.fileType = null;
+    state.totalPages = null;
+    fileInput.value = '';
+    fileRow.hidden = true;
+    optionsCard.hidden = true;
+    manualPagesField.hidden = true;
+    manualPagesInput.value = '';
+    rangeToggle.checked = false;
+    state.useRange = false;
+    rangeFields.classList.remove('open');
+    rangeFrom.value = '';
+    rangeTo.value = '';
+    updateSummary();
+  }
+
+  function handleFile(f){
+    const ext = extOf(f.name);
+    let type = null;
+    if (ext === 'pdf') type = 'pdf';
+    else if (ext === 'docx') type = 'docx';
+    else if (ext === 'pptx') type = 'pptx';
+    else {
+      alert('Formato no soportado. Subí un PDF, un Word (.docx) o un PowerPoint (.pptx).');
+      return;
+    }
+
+    state.file = f;
+    state.fileType = type;
+    state.totalPages = null;
+
+    fileRow.hidden = false;
+    fileIcon.textContent = type === 'pdf' ? 'PDF' : (type === 'docx' ? 'DOCX' : 'PPTX');
+    fileName.textContent = f.name;
+    optionsCard.hidden = false;
+
+    if (type === 'pdf') {
+      manualPagesField.hidden = true;
+      fileStatus.textContent = 'Detectando cantidad de páginas…';
+      readPdfPageCount(f);
+    } else {
+      manualPagesField.hidden = false;
+      fileStatus.textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB · se va a convertir a PDF en el centro';
+    }
+    updateSummary();
+
+    pushSesionEstado('esperando_archivo');
+    pushTrabajo({ nombre_archivo: f.name, tipo_archivo: type, estado: 'procesando' });
+    subirArchivo(f).then(() => {
+      if (!confirmado) pushSesionEstado('configurando');
+    }).catch(() => {
+      fileStatus.textContent = 'No pudimos subir el archivo. Probá de nuevo.';
+    });
+  }
+
+  function readPdfPageCount(f){
+    const reader = new FileReader();
+    reader.onload = function(){
+      const typedArray = new Uint8Array(this.result);
+      pdfjsLib.getDocument({ data: typedArray }).promise.then((doc) => {
+        state.totalPages = doc.numPages;
+        fileStatus.textContent = doc.numPages + ' páginas detectadas · ' + (f.size/1024/1024).toFixed(2) + ' MB';
+        rangeFrom.max = doc.numPages;
+        rangeTo.max = doc.numPages;
+        rangeTo.value = doc.numPages;
+        updateSummary();
+        subirPreviewPdf(doc);
+      }).catch(() => {
+        fileStatus.textContent = 'No pudimos leer el PDF automáticamente. Ingresá la cantidad de páginas.';
+        manualPagesField.hidden = false;
+        updateSummary();
+      });
+    };
+    reader.readAsArrayBuffer(f);
+  }
+
+  // Genera una miniatura de la primera página del PDF y la sube a Storage, para
+  // que la pantalla de la PC la muestre junto al QR de pago. Solo funciona con
+  // PDF: para Word/PowerPoint no hay forma liviana de renderizar una vista previa
+  // sin la conversión que hace LibreOffice en la PC (todavía no implementada).
+  function subirPreviewPdf(pdfDoc){
+    if (!isFirebaseConfigured || !hasSession || !sessionValid) return;
+    pdfDoc.getPage(1).then((page) => {
+      const targetWidth = 480;
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = targetWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+
+      return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(() => {
+        return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      });
+    }).then((blob) => {
+      if (!blob) return;
+      const ref = storage.ref('sesiones/' + sesionId + '/preview.jpg');
+      return ref.put(blob, { contentType: 'image/jpeg' }).then(() => ref.getDownloadURL());
+    }).then((url) => {
+      if (url) pushTrabajo({ preview_url: url });
+    }).catch(() => {
+      // Sin vista previa no pasa nada grave — la pantalla de la PC muestra un
+      // ícono genérico en su lugar. No hace falta molestar al usuario con esto.
+    });
+  }
+
+  function setMode(mode){
+    state.mode = mode;
+    btnSimple.classList.toggle('active', mode === 'simple');
+    btnSimple.setAttribute('aria-checked', mode === 'simple');
+    btnDoble.classList.toggle('active', mode === 'doble');
+    btnDoble.setAttribute('aria-checked', mode === 'doble');
+    updateSummary();
+  }
+  btnSimple.addEventListener('click', () => setMode('simple'));
+  btnDoble.addEventListener('click', () => setMode('doble'));
+
+  function setCopies(n){
+    n = Math.max(1, Math.min(999, Math.round(n) || 1));
+    state.copies = n;
+    copiesInput.value = n;
+    updateSummary();
+  }
+  copiesMinus.addEventListener('click', () => setCopies(state.copies - 1));
+  copiesPlus.addEventListener('click', () => setCopies(state.copies + 1));
+  copiesInput.addEventListener('change', () => setCopies(parseInt(copiesInput.value, 10)));
+
+  rangeToggle.addEventListener('change', () => {
+    state.useRange = rangeToggle.checked;
+    rangeFields.classList.toggle('open', state.useRange);
+    updateSummary();
+  });
+  [rangeFrom, rangeTo].forEach(el => el.addEventListener('input', updateSummary));
+  manualPagesInput.addEventListener('input', () => {
+    const v = parseInt(manualPagesInput.value, 10);
+    state.totalPages = (v && v > 0) ? v : null;
+    rangeFrom.max = state.totalPages || '';
+    rangeTo.max = state.totalPages || '';
+    updateSummary();
+  });
+
+  function getEffectivePages(){
+    const total = state.totalPages;
+    if (!total) return null;
+    if (!state.useRange) return total;
+
+    const from = parseInt(rangeFrom.value, 10);
+    const to = parseInt(rangeTo.value, 10);
+    if (!from || !to || from < 1 || to > total || from > to) return 'invalid';
+    return (to - from) + 1;
+  }
+
+  function updateSummary(){
+    const pages = getEffectivePages();
+    rangeError.classList.toggle('show', pages === 'invalid');
+
+    const valid = state.file && pages && pages !== 'invalid';
+
+    if (!valid) {
+      summaryBody.hidden = true;
+      summaryHint.hidden = false;
+      summaryHint.textContent = state.file
+        ? 'Completá los datos para ver el precio.'
+        : 'Subí un archivo para ver el precio estimado.';
+      btnConfirm.disabled = true;
+      return;
+    }
+
+    summaryHint.hidden = true;
+    summaryBody.hidden = false;
+
+    const copies = state.copies;
+    const mode = state.mode;
+
+    let sheetsPerCopy, pricePerSheet;
+    if (mode === 'simple') {
+      sheetsPerCopy = pages;
+      pricePerSheet = PRICE_SIMPLE;
+    } else {
+      sheetsPerCopy = Math.ceil(pages / 2);
+      pricePerSheet = PRICE_DOBLE;
+    }
+    const totalSheets = sheetsPerCopy * copies;
+    const total = totalSheets * pricePerSheet;
+
+    sumPages.textContent = pages + (state.useRange ? ' (de ' + state.totalPages + ')' : '');
+    sumCopies.textContent = copies;
+    sumMode.textContent = mode === 'simple' ? 'Simple faz' : 'Doble faz';
+    sumSheets.textContent = totalSheets;
+    sumPriceSheet.textContent = fmtMoney(pricePerSheet);
+    sumTotal.textContent = fmtMoney(total);
+
+    btnConfirm.disabled = false;
+    state._computed = { pages, copies, mode, totalSheets, total };
+
+    pushTrabajo({
+      cantidad_paginas_total: state.totalPages,
+      rango_desde: state.useRange ? parseInt(rangeFrom.value, 10) : 1,
+      rango_hasta: state.useRange ? parseInt(rangeTo.value, 10) : state.totalPages,
+      copias: copies,
+      faz: mode,
+      precio: total
+    });
+  }
+
+  function randomCode(){
+    const n = Math.floor(1000 + Math.random() * 9000);
+    return 'CE-' + n;
+  }
+
+  let payTimerInterval = null;
+
+  btnConfirm.addEventListener('click', () => {
+    const c = state._computed;
+    if (!c) return;
+
+    confirmado = true;
+    const code = hasSession ? sesionId.slice(0, 8).toUpperCase() : randomCode();
+    $('ticket-code').textContent = code;
+
+    pushTrabajo({ estado: 'listo_para_pagar' });
+    pushSesionEstado('pago_pendiente');
+    if (isFirebaseConfigured && hasSession && sessionValid) {
+      db.collection('pagos').doc(sesionId).set({
+        trabajo_id: sesionId,
+        proveedor: 'mercadopago',
+        estado: 'pendiente',
+        referencia_externa: null,
+        monto: c.total,
+        created_at: firebase.firestore.Timestamp.now()
+      });
+    }
+    $('tk-file').textContent = state.file.name;
+    $('tk-pages').textContent = c.pages + ' pág. × ' + c.copies + ' copia(s)';
+    $('tk-mode').textContent = c.mode === 'simple' ? 'Simple faz' : 'Doble faz';
+    $('tk-total').textContent = fmtMoney(c.total);
+
+    formColumn.hidden = true;
+    ticketCard.hidden = false;
+
+    // El QR de pago se muestra en la pantalla del centro (pc-app.html), no acá —
+    // el usuario ya tiene el celular en la mano mostrando esta página, así que no
+    // podría escanear un QR que apareciera en su propia pantalla. El celular solo
+    // informa el monto y espera a que la pantalla del centro confirme el pago.
+
+    // 10-minute payment timeout, matching the session flow in the spec.
+    if (payTimerInterval) clearInterval(payTimerInterval);
+    let secondsLeft = 10 * 60;
+    const payTimerEl = $('pay-timer');
+    payTimerEl.textContent = '10:00';
+    payTimerInterval = setInterval(() => {
+      secondsLeft -= 1;
+      if (secondsLeft <= 0) {
+        clearInterval(payTimerInterval);
+        payTimerEl.textContent = '0:00';
+        return;
+      }
+      const m = Math.floor(secondsLeft / 60);
+      const s = secondsLeft % 60;
+      payTimerEl.textContent = m + ':' + String(s).padStart(2, '0');
+    }, 1000);
+  });
+
+  $('btn-new-order').addEventListener('click', () => {
+    if (payTimerInterval) clearInterval(payTimerInterval);
+    confirmado = false;
+    ticketCard.hidden = true;
+    formColumn.hidden = false;
+    resetFile();
+    setMode('simple');
+    setCopies(1);
+  });
+
+})();
+</script>

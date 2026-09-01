@@ -1,0 +1,67 @@
+rules_version = '2';
+
+// Reglas de Firestore para AutoCentro — MVP de una sola sede (centro_id = "principal").
+//
+// Modelo de permisos para esta primera etapa:
+//  - config_centro: lectura pública (el celular necesita el modo_automatico y las tarifas
+//    antes de mostrar nada), escritura solo desde la consola de Firebase por ahora
+//    (el toggle con PIN todavía no tiene una Cloud Function que lo valide).
+//  - sesiones: cualquiera con el ID de sesión (viene en el link del QR) puede leer/escribir
+//    campos de progreso, pero NADIE puede escribir el campo "estado" a 'pagado' desde el
+//    cliente — esa transición la va a hacer únicamente el webhook de pago (Cloud Function
+//    con permisos de administrador), cuando lo implementemos.
+//  - trabajos y pagos: mismo criterio — el cliente puede crear/actualizar datos del pedido,
+//    pero no puede marcarse a sí mismo como pagado.
+//
+// Todo esto requiere que tanto la pantalla de la PC como el celular usen Firebase Anonymous
+// Auth (un usuario anónimo por pestaña) — así al menos hay un request.auth.uid, aunque no
+// identifique a una persona real. Sin esto, cualquier regla de Firestore que no sea "true"
+// bloquea todo.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /config_centro/{centroId} {
+      allow read: if true;
+      allow write: if false; // se edita a mano en la consola por ahora
+    }
+
+    match /sesiones/{sesionId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.estado == 'idle';
+      // ⚠️ TEMPORAL PARA TESTING: mientras no exista el webhook de pago ni el
+      // agente de impresión, dejamos que cualquier cliente autenticado (incluido
+      // el atajo de teclado "P" en pc-app.html) pueda mover la sesión a pagado/
+      // imprimiendo/listo. Antes de manejar pagos reales, volver a esto:
+      //   allow update: if request.auth != null
+      //                 && request.resource.data.estado != 'pagado'
+      //                 && request.resource.data.estado != 'imprimiendo'
+      //                 && request.resource.data.estado != 'listo';
+      allow update: if request.auth != null;
+    }
+
+    match /trabajos/{trabajoId} {
+      allow read: if true;
+      allow create, update: if request.auth != null;
+      // Por ahora el cliente puede escribir cualquier campo del trabajo, incluido el precio
+      // que calcula localmente (ver mobile-app.html). Es una simplificación a propósito para
+      // esta etapa: el precio real y definitivo para cobrar se recalcula del lado del backend
+      // (Cloud Function) antes de generar el QR de pago, así que un precio manipulado acá
+      // nunca llega a cobrarse de más ni de menos. Cuando eso exista, esta regla se endurece
+      // para que el cliente no pueda tocar el campo "precio" en absoluto.
+    }
+
+    match /pagos/{pagoId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.estado == 'pendiente';
+      allow update: if request.auth != null
+                    && request.resource.data.estado == 'pendiente';
+      // El celular puede crear el pago y dejarlo en "pendiente" (todavía no hay
+      // proveedor de pago conectado). Pero nadie del lado del cliente puede
+      // marcarlo "aprobado" — esa transición queda reservada para el webhook
+      // de pago (Cloud Function con Admin SDK) el día que exista.
+    }
+  }
+}

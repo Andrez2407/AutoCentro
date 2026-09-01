@@ -1,0 +1,566 @@
+<title>Pantalla del Centro — en vivo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --screen-bg:#0c1622;
+    --screen-surface:#132234;
+    --screen-surface-2:#1b3149;
+    --screen-text:#eef4fa;
+    --screen-text-muted:#93a9c0;
+    --screen-border:#28405a;
+    --primary:#1d4e89;
+    --accent:#2e86ab;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--screen-bg);
+    color:var(--screen-text);
+    font-family:"Public Sans", ui-sans-serif, system-ui, sans-serif;
+    overflow:hidden;
+  }
+  h1,.brand-name{font-family:"Sora", sans-serif; margin:0; text-wrap:balance;}
+  .mono{font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums;}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+  .kiosk{
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .status-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:26px 40px 0;
+  }
+  .brand-mini{display:flex; align-items:center; gap:14px;}
+  .logo-badge{
+    width:44px; height:44px; border-radius:11px;
+    background:linear-gradient(155deg, var(--primary), var(--accent));
+    color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:"Sora",sans-serif; font-weight:700; font-size:16px;
+  }
+  .brand-mini span{font-family:"Sora",sans-serif; font-weight:600; font-size:19px;}
+
+  .status-chip{
+    display:flex; align-items:center; gap:8px;
+    font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+    padding:7px 16px; border-radius:999px;
+  }
+  .status-chip .dot{width:8px; height:8px; border-radius:50%;}
+  .status-chip.st-neutral{background:rgba(148,167,186,.16); color:#c6d2de;}
+  .status-chip.st-neutral .dot{background:#93a9c0;}
+  .status-chip.st-active{background:rgba(95,178,214,.16); color:#8fd0ee;}
+  .status-chip.st-active .dot{background:#5fb2d6;}
+  .status-chip.st-warn{background:rgba(217,139,86,.18); color:#f3b98a;}
+  .status-chip.st-warn .dot{background:#d98b56;}
+  .status-chip.st-ok{background:rgba(79,191,143,.18); color:#8fe0bb;}
+  .status-chip.st-ok .dot{background:#4fbf8f;}
+  .status-chip.st-danger{background:rgba(224,119,109,.18); color:#f0a89f;}
+  .status-chip.st-danger .dot{background:#e0776d;}
+
+  .gear{
+    width:38px; height:38px; border-radius:50%;
+    background:var(--screen-surface-2);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--screen-text-muted);
+    font-size:17px;
+    border:none; cursor:pointer;
+    margin-left:10px;
+  }
+  .gear:hover{color:#fff;}
+
+  .screen-body{
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+    padding:0 8% 4%;
+    gap:16px;
+  }
+
+  .qr-wrap{
+    background:#fff; border-radius:16px; padding:22px;
+    display:flex; align-items:center; justify-content:center;
+    width:min(30vh, 320px); aspect-ratio:1;
+    margin-bottom:8px;
+  }
+  .qr-wrap canvas{width:100%; height:100%; display:block;}
+  .qr-wrap img{display:none;} /* qrcodejs agrega una <img> de respaldo del mismo tamaño; la ocultamos */
+
+  .screen-title{font-family:"Sora", sans-serif; font-weight:700; font-size:clamp(22px,4vw,42px);}
+  .screen-sub{font-size:clamp(13px,1.6vw,18px); color:var(--screen-text-muted); max-width:640px;}
+  .screen-meta{font-family:"JetBrains Mono",monospace; font-size:clamp(12px,1.3vw,15px); color:var(--screen-text-muted); margin-top:4px;}
+  .big-amount{font-family:"JetBrains Mono",monospace; font-weight:600; font-size:clamp(30px,6vw,56px);}
+  .order-code{
+    font-family:"JetBrains Mono",monospace; font-weight:600; font-size:clamp(14px,2vw,22px);
+    background:var(--screen-surface-2); padding:8px 20px; border-radius:10px; letter-spacing:.03em;
+  }
+
+  .pago-layout{
+    display:flex; align-items:center; justify-content:center;
+    gap:clamp(24px,5vw,64px); flex-wrap:wrap;
+  }
+  .pago-qr-col{display:flex; flex-direction:column; align-items:center; gap:10px;}
+  .preview-card{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    background:var(--screen-surface); border:1px solid var(--screen-border); border-radius:14px;
+    padding:16px; width:min(22vh, 220px);
+  }
+  .preview-card img{
+    width:100%; border-radius:8px; display:block;
+    box-shadow:0 10px 24px -12px rgba(0,0,0,.6);
+  }
+  .preview-placeholder{
+    width:100%; aspect-ratio:3/4; border-radius:8px; background:var(--screen-surface-2);
+    display:flex; align-items:center; justify-content:center;
+    font-family:"JetBrains Mono",monospace; font-weight:600; letter-spacing:.04em;
+    color:var(--screen-text-muted); font-size:clamp(12px,1.6vw,15px);
+  }
+  .preview-name{
+    font-size:clamp(10px,1.3vw,12px); color:var(--screen-text-muted);
+    text-align:center; word-break:break-word; max-width:100%;
+  }
+
+  .icon-circle{
+    width:84px; height:84px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; margin-bottom:6px;
+  }
+  .icon-circle.c-neutral{background:var(--screen-surface-2); color:var(--screen-text-muted);}
+  .icon-circle.c-active{background:rgba(95,178,214,.16); color:#5fb2d6;}
+  .icon-circle.c-ok{background:rgba(79,191,143,.16); color:#4fbf8f;}
+  .icon-circle.c-danger{background:rgba(224,119,109,.16); color:#e0776d;}
+  .icon-circle svg{width:44px; height:44px;}
+
+  .spinner{
+    width:34px; height:34px; border-radius:50%;
+    border:3px solid var(--screen-surface-2); border-top-color:#5fb2d6;
+    animation:spin 0.9s linear infinite; margin-bottom:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .pin-overlay{
+    position:fixed; inset:0; background:rgba(6,12,20,.78);
+    display:flex; align-items:center; justify-content:center; z-index:20;
+  }
+  .pin-card{
+    background:var(--screen-surface); border:1px solid var(--screen-border);
+    border-radius:18px; padding:32px 40px; text-align:center; width:340px;
+  }
+  .pin-card .pin-title{font-family:"Sora",sans-serif; font-weight:600; font-size:16px; margin-bottom:16px;}
+  .pin-dots{display:flex; gap:12px; justify-content:center; margin-bottom:18px;}
+  .pin-dots span{width:13px; height:13px; border-radius:50%; background:var(--screen-surface-2); border:1px solid var(--screen-border);}
+  .pin-dots span.filled{background:var(--accent); border-color:var(--accent);}
+  .pin-keypad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .pin-keypad button{
+    background:var(--screen-surface-2); border:none; border-radius:9px; padding:16px 0;
+    font-family:"JetBrains Mono",monospace; font-size:18px; color:var(--screen-text); cursor:pointer;
+  }
+  .pin-keypad button:hover{background:var(--screen-border);}
+  .pin-cancel{margin-top:16px; background:none; border:none; color:var(--screen-text-muted); font-size:13px; cursor:pointer;}
+
+  .config-banner{
+    position:fixed; top:0; left:0; right:0;
+    background:#b3261e; color:#fff; text-align:center;
+    font-size:13px; padding:8px; z-index:30;
+  }
+  [hidden]{display:none !important;}
+</style>
+
+<div id="config-banner" class="config-banner" hidden>
+  Falta configurar Firebase — completá <span class="mono">FIREBASE_CONFIG</span> al final del archivo.
+</div>
+
+<div class="kiosk">
+  <div class="status-bar">
+    <div class="brand-mini">
+      <div class="logo-badge">CE</div>
+      <span>Centro de Estudiantes</span>
+    </div>
+    <div style="display:flex; align-items:center;">
+      <div class="status-chip st-neutral" id="status-chip"><span class="dot"></span><span id="status-text">Conectando…</span></div>
+      <button class="gear" id="gear-btn" aria-label="Configuración">⚙</button>
+    </div>
+  </div>
+
+  <div class="screen-body" id="screen-body">
+    <div class="spinner"></div>
+    <div class="screen-title">Conectando con el centro…</div>
+  </div>
+</div>
+
+<div class="pin-overlay" id="pin-overlay" hidden>
+  <div class="pin-card">
+    <div class="pin-title">Ingresá el PIN para cambiar el modo</div>
+    <div class="pin-dots" id="pin-dots">
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <div class="pin-keypad">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button></button><button data-k="0">0</button><button data-k="del">⌫</button>
+    </div>
+    <button class="pin-cancel" id="pin-cancel">Cancelar</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // 1) COMPLETÁ ESTO con la config de tu proyecto de Firebase
+  //    (Firebase console → Configuración del proyecto → tus apps → Web).
+  //    El mismo objeto va también en mobile-app.html — mantenerlos iguales.
+  // ============================================================
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCw26YY9Y1HYbqIzw427CHaKAajno0xWk8",
+    authDomain: "autocentro-14a94.firebaseapp.com",
+    projectId: "autocentro-14a94",
+    storageBucket: "autocentro-14a94.firebasestorage.app",
+    messagingSenderId: "476529422320",
+    appId: "1:476529422320:web:3eccc3259b6dddd0513735"
+  };
+
+  // URL pública donde vas a alojar mobile-app.html (Firebase Hosting, por ejemplo).
+  // El QR de cada sesión apunta ahí con ?s=<sesionId>&t=<token>.
+  const MOBILE_APP_URL = "https://autocentro-14a94.web.app/mobile-app.html";
+
+  const CENTRO_ID = "principal";
+  const PIN_ESPERADO = "1234"; // TODO: reemplazar por un chequeo contra pin_hash en config_centro
+
+  // URL de la Cloud Function que le avisa a Mercado Pago cuánto cobrar la
+  // próxima vez que alguien escanee el QR de la caja (ver crearOrdenQrMP).
+  const CREAR_ORDEN_QR_URL = "https://crearordenqrmp-khf6d77fra-rj.a.run.app";
+
+  // QR ESTÁTICO de la caja (código EMV que devolvió crearLocalYCajaMP al crearla).
+  // Es siempre el mismo — no es secreto, es lo que se ve al escanear el papel
+  // pegado en el mostrador. Lo que cambia por pedido es el monto pendiente,
+  // que se setea llamando a CREAR_ORDEN_QR_URL antes de mostrar este QR.
+  const QR_PAGO_ESTATICO = "00020101021143540016com.mercadolibre0130https://mpago.la/pos/1374588685011000711111115204970053030325802AR5909Test Test6004CABA63040F6F";
+
+  const configured = FIREBASE_CONFIG.apiKey !== "TODO";
+  document.getElementById('config-banner').hidden = configured;
+  if (!configured) {
+    setStatus('st-danger', 'Sin configurar');
+    setBody(`<div class="icon-circle c-danger">!</div><div class="screen-title">Falta conectar Firebase</div><div class="screen-sub">Completá FIREBASE_CONFIG y MOBILE_APP_URL en este archivo.</div>`);
+    return;
+  }
+
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  const $ = (id) => document.getElementById(id);
+  const statusChip = $('status-chip');
+  const statusText = $('status-text');
+  const screenBody = $('screen-body');
+
+  function setStatus(cls, text){
+    statusChip.className = 'status-chip ' + cls;
+    statusText.textContent = text;
+  }
+  function setBody(html){ screenBody.innerHTML = html; }
+
+  let unsubscribeSesion = null;
+  let idleTimer = null;
+  let sesionIdActual = null;
+  let estadoActual = null;
+
+  auth.signInAnonymously().then(() => {
+    watchModoAutomatico();
+  }).catch((err) => {
+    setStatus('st-danger', 'Error de conexión');
+    setBody(`<div class="screen-title">No pudimos conectar</div><div class="screen-sub mono">${err.message}</div>`);
+  });
+
+  function watchModoAutomatico(){
+    db.collection('config_centro').doc(CENTRO_ID).onSnapshot((doc) => {
+      const data = doc.data();
+      if (!data) {
+        // Primera vez: no existe el documento de config todavía.
+        setStatus('st-danger', 'Falta config_centro');
+        setBody(`<div class="screen-title">Creá el documento config_centro/${CENTRO_ID}</div><div class="screen-sub">Con al menos: modo_automatico (bool) y tarifas.simple / tarifas.doble.</div>`);
+        return;
+      }
+      if (data.modo_automatico) {
+        ensureIdleSession();
+      } else {
+        if (unsubscribeSesion) { unsubscribeSesion(); unsubscribeSesion = null; }
+        clearTimeout(idleTimer);
+        renderManual();
+      }
+    });
+  }
+
+  function renderManual(){
+    setStatus('st-neutral', 'Atención manual');
+    setBody(`
+      <div class="icon-circle c-neutral">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+      </div>
+      <div class="screen-title">Atención manual activa</div>
+      <div class="screen-sub">Por ahora las impresiones se hacen en el mostrador. Acercate para que te ayudemos.</div>
+    `);
+  }
+
+  function randomToken(){
+    return Array.from(crypto.getRandomValues(new Uint8Array(12)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Crea una sesión nueva en Idle y la escucha en vivo. Si nadie la escanea en 3
+  // minutos, se marca expirada y se crea otra automáticamente.
+  function ensureIdleSession(){
+    if (unsubscribeSesion) return; // ya hay una sesión activa siendo escuchada
+    crearYEscucharSesion();
+  }
+
+  function crearYEscucharSesion(){
+    const token = randomToken();
+    const now = firebase.firestore.Timestamp.now();
+    const expiresAt = firebase.firestore.Timestamp.fromMillis(Date.now() + 3 * 60 * 1000);
+
+    db.collection('sesiones').add({
+      centro_id: CENTRO_ID,
+      token_qr: token,
+      estado: 'idle',
+      created_at: now,
+      updated_at: now,
+      expires_at: expiresAt
+    }).then((ref) => {
+      escucharSesion(ref.id, token);
+    }).catch((err) => {
+      setStatus('st-danger', 'Error');
+      setBody(`<div class="screen-title">No se pudo crear la sesión</div><div class="screen-sub mono">${err.message}</div>`);
+    });
+  }
+
+  function escucharSesion(sesionId, token){
+    clearTimeout(idleTimer);
+    unsubscribeSesion = db.collection('sesiones').doc(sesionId).onSnapshot((doc) => {
+      const data = doc.data();
+      if (!data) return;
+      renderEstado(sesionId, token, data);
+    });
+  }
+
+  function renderEstado(sesionId, token, data){
+    sesionIdActual = sesionId;
+    estadoActual = data.estado;
+    switch (data.estado) {
+      case 'idle': {
+        setStatus('st-neutral', 'En espera');
+        const url = MOBILE_APP_URL + '?s=' + sesionId + '&t=' + token;
+        setBody(`
+          <div class="qr-wrap" id="qr-canvas"></div>
+          <div class="screen-title">Escaneá para imprimir</div>
+          <div class="screen-sub">Abrí la cámara de tu celular y apuntá al código para empezar tu pedido.</div>
+        `);
+        if (window.QRCode) {
+          new QRCode(document.getElementById('qr-canvas'), { text: url, width: 400, height: 400, correctLevel: QRCode.CorrectLevel.M });
+        }
+        // Si nadie escanea en 3 min, expira y se crea una sesión nueva.
+        const msLeft = data.expires_at.toMillis() - Date.now();
+        idleTimer = setTimeout(() => {
+          db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
+        }, Math.max(msLeft, 0));
+        break;
+      }
+      case 'esperando_archivo':
+        setStatus('st-active', 'Sesión activa');
+        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div><div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div>`);
+        break;
+      case 'configurando':
+        setStatus('st-active', 'Procesando');
+        setBody(`<div class="spinner"></div><div class="screen-title">Preparando tu documento</div><div class="screen-sub">Convirtiendo el archivo y contando páginas…</div>`);
+        break;
+      case 'pago_pendiente':
+        watchPago(sesionId);
+        break;
+      case 'pagado':
+        setStatus('st-active', 'Imprimiendo');
+        setBody(`<div class="icon-circle c-active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.4"/><path d="M6 17v4h12v-4"/></svg>
+          </div><div class="screen-title">Imprimiendo tu documento</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
+        // SOLO PARA TESTING: sin agente de impresión real todavía, simulamos que
+        // termina de imprimir a los 3 segundos. El día que exista el agente de la
+        // PC, es él quien va a escribir "listo" (o "error") en Firestore.
+        setTimeout(() => {
+          db.collection('sesiones').doc(sesionId).update({ estado: 'listo' });
+        }, 3000);
+        break;
+      case 'listo':
+        setStatus('st-ok', 'Listo');
+        setBody(`<div class="icon-circle c-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg></div><div class="screen-title">Retirá tu impresión en el mostrador</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
+        volverAIdleEn(sesionId, 8000);
+        break;
+      case 'error':
+        setStatus('st-danger', 'Necesita atención');
+        setBody(`<div class="icon-circle c-danger">!</div><div class="screen-title">Hubo un problema al imprimir</div><div class="screen-sub">Tu pago ya fue registrado. Mostrá este código en el mostrador.</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
+        break;
+      case 'expirada':
+      default:
+        if (unsubscribeSesion) { unsubscribeSesion(); unsubscribeSesion = null; }
+        crearYEscucharSesion();
+        break;
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function previewHtml(trabajo){
+    if (trabajo && trabajo.preview_url) {
+      return `
+        <div class="preview-card">
+          <img src="${trabajo.preview_url}" alt="Vista previa del archivo">
+          <div class="preview-name">${escapeHtml(trabajo.nombre_archivo)}</div>
+        </div>`;
+    }
+    const tipo = trabajo ? trabajo.tipo_archivo : null;
+    const label = tipo === 'docx' ? 'DOCX' : (tipo === 'pptx' ? 'PPTX' : (tipo === 'pdf' ? 'PDF' : '···'));
+    return `
+      <div class="preview-card">
+        <div class="preview-placeholder">${label}</div>
+        <div class="preview-name">${escapeHtml(trabajo && trabajo.nombre_archivo)}</div>
+      </div>`;
+  }
+
+  function watchPago(sesionId){
+    setStatus('st-warn', 'Pago pendiente');
+    let pago = null;
+    let trabajo = null;
+    let ordenCreada = false; // para no pedir la orden más de una vez por sesión
+    let qrDibujado = false; // el QR es siempre el mismo, no hace falta redibujarlo
+
+    function render(){
+      if (!pago) return;
+      const monto = pago.monto ? '$' + pago.monto.toLocaleString('es-AR') : '—';
+      const codigo = sesionId.slice(0,8).toUpperCase();
+      const avisoEspera = ordenCreada
+        ? ''
+        : '<div class="screen-sub" id="qr-esperando" style="font-size:12px;">Preparando el cobro…</div>';
+      setBody(`
+        <div class="pago-layout">
+          ${previewHtml(trabajo)}
+          <div class="pago-qr-col">
+            <div class="screen-title" style="font-size:clamp(16px,2.4vw,26px);">Escaneá para pagar</div>
+            <div class="qr-wrap" id="qr-pago" style="width:min(22vh,230px);"></div>
+            <div class="big-amount" style="font-size:clamp(20px,3.4vw,34px);">${monto}</div>
+            <div class="order-code">${codigo}</div>
+            ${avisoEspera}
+          </div>
+        </div>
+      `);
+      qrDibujado = false; // el setBody de arriba borró el contenedor anterior
+
+      if (!pago.monto) return;
+
+      // El QR físico es siempre el mismo (código estático de la caja); lo
+      // mostramos apenas tenemos el monto, aunque la orden todavía no haya
+      // terminado de crearse en Mercado Pago (por las dudas se reintenta abajo).
+      if (window.QRCode && !qrDibujado) {
+        new QRCode(document.getElementById('qr-pago'), { text: QR_PAGO_ESTATICO, width: 260, height: 260, correctLevel: QRCode.CorrectLevel.M });
+        qrDibujado = true;
+      }
+
+      if (!ordenCreada) {
+        ordenCreada = true; // evita pedidos duplicados si vuelve a disparar el snapshot
+        fetch(CREAR_ORDEN_QR_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            monto: pago.monto,
+            descripcion: 'Fotocopias — pedido ' + codigo,
+            referencia: sesionId,
+          }),
+        }).then((res) => res.json().catch(() => ({}))).then((data) => {
+          const aviso = document.getElementById('qr-esperando');
+          if (aviso) aviso.remove();
+          if (data && data.error) {
+            console.error('Error creando la orden QR', data);
+          }
+        }).catch((err) => {
+          // Si falla la creación de la orden, permitimos reintentar en el próximo render.
+          ordenCreada = false;
+          console.error('Error creando la orden QR', err);
+        });
+      }
+    }
+
+    db.collection('pagos').doc(sesionId).onSnapshot((doc) => { pago = doc.data(); render(); });
+    db.collection('trabajos').doc(sesionId).onSnapshot((doc) => { trabajo = doc.data(); render(); });
+  }
+
+  function volverAIdleEn(sesionId, ms){
+    setTimeout(() => {
+      if (unsubscribeSesion) { unsubscribeSesion(); unsubscribeSesion = null; }
+      crearYEscucharSesion();
+    }, ms);
+  }
+
+  // ---- Toggle modo automático / manual (PIN) ----
+  const pinOverlay = $('pin-overlay');
+  const pinDots = $('pin-dots').children;
+  let pinBuffer = '';
+
+  $('gear-btn').addEventListener('click', () => {
+    pinBuffer = '';
+    renderPinDots();
+    pinOverlay.hidden = false;
+  });
+  $('pin-cancel').addEventListener('click', () => { pinOverlay.hidden = true; });
+
+  document.querySelectorAll('.pin-keypad button[data-k]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const k = btn.getAttribute('data-k');
+      if (k === 'del') { pinBuffer = pinBuffer.slice(0, -1); }
+      else if (pinBuffer.length < 4) { pinBuffer += k; }
+      renderPinDots();
+      if (pinBuffer.length === 4) {
+        setTimeout(() => {
+          if (pinBuffer === PIN_ESPERADO) {
+            db.collection('config_centro').doc(CENTRO_ID).get().then((doc) => {
+              const actual = doc.data() ? doc.data().modo_automatico : true;
+              db.collection('config_centro').doc(CENTRO_ID).set({ modo_automatico: !actual }, { merge: true });
+            });
+            pinOverlay.hidden = true;
+          } else {
+            pinBuffer = '';
+            renderPinDots();
+          }
+        }, 150);
+      }
+    });
+  });
+
+  function renderPinDots(){
+    for (let i = 0; i < pinDots.length; i++) {
+      pinDots[i].classList.toggle('filled', i < pinBuffer.length);
+    }
+  }
+
+  // ---- SOLO PARA TESTING: atajo de teclado para simular el pago ----
+  // Apretar "P" con una sesión en pago_pendiente la marca como pagada, así se
+  // puede probar imprimiendo/listo sin depender todavía del webhook real.
+  // Sacar esto (y volver a cerrar la regla de sesiones en firestore.rules)
+  // antes de manejar pagos de verdad.
+  document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'p') return;
+    if (!sesionIdActual || estadoActual !== 'pago_pendiente') return;
+    db.collection('sesiones').doc(sesionIdActual).update({
+      estado: 'pagado',
+      updated_at: firebase.firestore.Timestamp.now()
+    });
+  });
+})();
+</script>

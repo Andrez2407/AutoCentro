@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>AutoCentro — Test de impresión</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --border: #dfe2e7;
+    --text: #1c1f24;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --ok: #16a34a;
+    --err: #dc2626;
+    --warn: #d97706;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .subtitulo { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+  .fila { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .fila:last-child { margin-bottom: 0; }
+  label { font-weight: 600; min-width: 120px; }
+  select, input[type=number] {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+  }
+  input[type=number] { width: 70px; }
+  button {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover { background: #f0f1f3; }
+  button.primario {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  button.primario:hover { background: #1d4ed8; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .archivo-elegido {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12px;
+    color: var(--muted);
+    word-break: break-all;
+  }
+  .checkbox-fila { display: flex; align-items: center; gap: 6px; }
+  .checkbox-fila label { min-width: 0; font-weight: 400; }
+  #log {
+    background: #0f1115;
+    color: #d5d8dd;
+    border-radius: 8px;
+    padding: 12px 14px;
+    height: 260px;
+    overflow-y: auto;
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 12.5px;
+  }
+  .log-linea { padding: 2px 0; border-bottom: 1px solid #1f2329; }
+  .log-linea:last-child { border-bottom: none; }
+  .log-hora { color: #6b7280; margin-right: 8px; }
+  .log-sent { color: #9ca3af; }
+  .log-printing { color: var(--warn); }
+  .log-success { color: #4ade80; font-weight: 600; }
+  .log-error { color: #f87171; font-weight: 600; }
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .badge-ok { background: #dcfce7; color: #166534; }
+  .badge-err { background: #fee2e2; color: #991b1b; }
+  .badge-warn { background: #fef3c7; color: #92400e; }
+  .aviso {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+  <h1>AutoCentro — Test de impresión</h1>
+  <p class="subtitulo">
+    Página de debug aislada: no pasa por Storage ni por Firestore. Solo prueba el módulo de
+    impresión (SumatraPDF + polling del spooler) que corre en el proceso principal de Electron.
+  </p>
+
+  <div class="panel">
+    <h2>1. Archivo</h2>
+    <div class="fila">
+      <button id="btn-elegir-pdf">Elegir PDF de prueba…</button>
+      <span id="ruta-pdf" class="archivo-elegido">Ningún archivo elegido.</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. Impresora</h2>
+    <div class="fila">
+      <label for="select-impresora">Impresora</label>
+      <select id="select-impresora"><option value="">(cargando...)</option></select>
+      <button id="btn-refrescar-impresoras">Refrescar</button>
+    </div>
+    <p class="aviso">
+      Para probar sin gastar papel, elegí <strong>Microsoft Print to PDF</strong> — valida que
+      el comando y los flags estén bien armados, pero no valida el polling de estado real
+      (abre un diálogo para guardar y no reporta atascos/falta de papel).
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>3. Opciones</h2>
+    <div class="fila">
+      <label for="input-copias">Copias</label>
+      <input type="number" id="input-copias" value="1" min="1" max="99" />
+    </div>
+    <div class="fila">
+      <label for="select-color">Color</label>
+      <select id="select-color">
+        <option value="monochrome">Blanco y negro</option>
+        <option value="color">Color</option>
+      </select>
+    </div>
+    <div class="fila">
+      <label for="select-duplex">Doble faz</label>
+      <select id="select-duplex">
+        <option value="simplex">Simplex (una cara)</option>
+        <option value="duplex">Duplex (borde largo, auto)</option>
+        <option value="duplexlong">Duplex borde largo</option>
+        <option value="duplexshort">Duplex borde corto</option>
+      </select>
+    </div>
+    <div class="fila checkbox-fila">
+      <input type="checkbox" id="check-fit" checked />
+      <label for="check-fit">Ajustar a la hoja (fit)</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4. Imprimir</h2>
+    <div class="fila">
+      <button id="btn-imprimir" class="primario">Imprimir prueba</button>
+      <span id="estado-actual"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Log de estado en vivo</h2>
+    <div id="log"></div>
+  </div>
+
+<script>
+  const { seleccionarPdf, listarImpresoras, imprimir, onEventoImpresion } = window.agenteImpresion;
+
+  let rutaPdfElegida = null;
+
+  const elRutaPdf = document.getElementById('ruta-pdf');
+  const elSelectImpresora = document.getElementById('select-impresora');
+  const elBtnElegirPdf = document.getElementById('btn-elegir-pdf');
+  const elBtnRefrescar = document.getElementById('btn-refrescar-impresoras');
+  const elBtnImprimir = document.getElementById('btn-imprimir');
+  const elEstadoActual = document.getElementById('estado-actual');
+  const elLog = document.getElementById('log');
+
+  function agregarLog(claseCss, texto) {
+    const hora = new Date().toLocaleTimeString('es-AR', { hour12: false });
+    const linea = document.createElement('div');
+    linea.className = 'log-linea';
+    linea.innerHTML = `<span class="log-hora">${hora}</span><span class="${claseCss}">${texto}</span>`;
+    elLog.appendChild(linea);
+    elLog.scrollTop = elLog.scrollHeight;
+  }
+
+  function setEstado(texto, tipoBadge) {
+    elEstadoActual.textContent = texto;
+    elEstadoActual.className = tipoBadge ? `badge badge-${tipoBadge}` : '';
+  }
+
+  async function cargarImpresoras() {
+    elSelectImpresora.innerHTML = '<option value="">(cargando...)</option>';
+    const impresoras = await listarImpresoras();
+    elSelectImpresora.innerHTML = '';
+    if (!impresoras.length) {
+      elSelectImpresora.innerHTML = '<option value="">(no se encontraron impresoras)</option>';
+      return;
+    }
+    for (const imp of impresoras) {
+      const opt = document.createElement('option');
+      opt.value = imp.nombre;
+      opt.textContent = imp.nombre + (imp.esPredeterminada ? ' (predeterminada)' : '');
+      if (imp.esPredeterminada) opt.selected = true;
+      elSelectImpresora.appendChild(opt);
+    }
+  }
+
+  elBtnElegirPdf.addEventListener('click', async () => {
+    const ruta = await seleccionarPdf();
+    if (ruta) {
+      rutaPdfElegida = ruta;
+      elRutaPdf.textContent = ruta;
+    }
+  });
+
+  elBtnRefrescar.addEventListener('click', cargarImpresoras);
+
+  elBtnImprimir.addEventListener('click', async () => {
+    if (!rutaPdfElegida) {
+      agregarLog('log-error', 'Elegí un PDF antes de imprimir.');
+      return;
+    }
+    const nombreImpresora = elSelectImpresora.value;
+    if (!nombreImpresora) {
+      agregarLog('log-error', 'Elegí una impresora antes de imprimir.');
+      return;
+    }
+
+    const opciones = {
+      rutaPdf: rutaPdfElegida,
+      nombreImpresora,
+      copias: Number(document.getElementById('input-copias').value) || 1,
+      color: document.getElementById('select-color').value === 'color',
+      duplex: document.getElementById('select-duplex').value,
+      ajustarAHoja: document.getElementById('check-fit').checked,
+    };
+
+    elBtnImprimir.disabled = true;
+    setEstado('Enviando…', 'warn');
+    agregarLog('log-sent', `Iniciando impresión — ${JSON.stringify(opciones)}`);
+
+    const resultado = await imprimir(opciones);
+    if (!resultado.ok) {
+      elBtnImprimir.disabled = false;
+      setEstado(`Error: ${resultado.errorType}`, 'err');
+      agregarLog('log-error', `Error — ${resultado.errorType}: ${resultado.message}`);
+    }
+    // Si arrancó bien, el resto de los estados llega por los eventos IPC de abajo.
+  });
+
+  onEventoImpresion((evento) => {
+    switch (evento.tipo) {
+      case 'print-job:sent':
+        setEstado('Enviado al spooler', 'warn');
+        agregarLog('log-sent', `Enviado al spooler — ${evento.message}`);
+        break;
+      case 'print-job:printing':
+        setEstado('Imprimiendo…', 'warn');
+        agregarLog('log-printing', `Imprimiendo… — ${evento.message}`);
+        break;
+      case 'print-job:success':
+        setEstado('Éxito', 'ok');
+        agregarLog('log-success', `Éxito — ${evento.message}`);
+        elBtnImprimir.disabled = false;
+        break;
+      case 'print-job:error':
+        setEstado(`Error: ${evento.errorType}`, 'err');
+        agregarLog('log-error', `Error: ${evento.errorType} — ${evento.message}`);
+        elBtnImprimir.disabled = false;
+        break;
+    }
+  });
+
+  cargarImpresoras();
+</script>
+
+</body>
+</html>

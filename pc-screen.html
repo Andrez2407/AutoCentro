@@ -1,0 +1,593 @@
+<title>Pantalla del Centro</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --page-bg:#eef2f7;
+    --ink:#152233;
+    --ink-muted:#5c6c7e;
+    --primary:#1d4e89;
+    --primary-dark:#123657;
+    --accent:#2e86ab;
+    --accent-soft:#dceefa;
+    --ok:#1f8a5f; --ok-soft:#dff3ea;
+    --warn:#b3541e; --warn-soft:#fbe9dd;
+    --danger:#b3261e; --danger-soft:#fbe2df;
+    --neutral:#5c6c7e; --neutral-soft:#e7ecf1;
+    --screen-bg:#0c1622;
+    --screen-surface:#132234;
+    --screen-surface-2:#1b3149;
+    --screen-text:#eef4fa;
+    --screen-text-muted:#93a9c0;
+    --screen-border:#28405a;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --page-bg:#0f1720; --ink:#e8eef4; --ink-muted:#94a7ba;
+      --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
+      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+      --danger:#e0776d; --danger-soft:#3a1f1d; --neutral:#94a7ba; --neutral-soft:#1c2b39;
+    }
+  }
+  :root[data-theme="dark"]{
+    --page-bg:#0f1720; --ink:#e8eef4; --ink-muted:#94a7ba;
+    --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
+    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+    --danger:#e0776d; --danger-soft:#3a1f1d; --neutral:#94a7ba; --neutral-soft:#1c2b39;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--page-bg);
+    color:var(--ink);
+    font-family:"Public Sans", ui-sans-serif, system-ui, sans-serif;
+    line-height:1.5;
+  }
+  h1,h2,.brand-name{font-family:"Sora", sans-serif; margin:0; text-wrap:balance;}
+  .mono{font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums;}
+
+  .shell{max-width:1040px; margin:0 auto; padding:32px 20px 80px;}
+
+  header.top{margin-bottom:8px;}
+  header.top h1{font-size:22px; font-weight:700;}
+  header.top p{color:var(--ink-muted); font-size:14px; margin:6px 0 0;}
+
+  .intro-note{
+    background:var(--accent-soft);
+    border:1px solid var(--accent);
+    border-radius:12px;
+    padding:14px 16px;
+    font-size:13px;
+    color:var(--primary-dark);
+    margin:20px 0 36px;
+    line-height:1.55;
+  }
+  .intro-note strong{color:var(--ink);}
+
+  .frame-block{margin-bottom:52px;}
+  .frame-label{
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:12px;
+  }
+  .frame-index{
+    font-family:"JetBrains Mono", monospace;
+    font-size:12px; color:var(--ink-muted);
+    background:var(--neutral-soft);
+    border-radius:6px;
+    padding:2px 7px;
+  }
+  .frame-title{font-size:15px; font-weight:600;}
+  .frame-desc{font-size:12.5px; color:var(--ink-muted); margin:2px 0 0 0;}
+
+  /* Monitor bezel */
+  .monitor{
+    background:linear-gradient(155deg,#1a1a1a,#050505);
+    border-radius:18px;
+    padding:14px 14px 26px;
+    box-shadow: 0 20px 45px -20px rgba(0,0,0,.5);
+  }
+  .monitor-stand{
+    width:90px; height:10px; background:#0a0a0a; margin:0 auto; border-radius:0 0 6px 6px;
+  }
+  .screen{
+    aspect-ratio: 16/9;
+    background:var(--screen-bg);
+    border-radius:8px;
+    overflow:hidden;
+    position:relative;
+    display:flex; flex-direction:column;
+    color:var(--screen-text);
+  }
+
+  .status-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:3.5% 4.5% 0;
+  }
+  .brand-mini{display:flex; align-items:center; gap:10px;}
+  .logo-badge-sm{
+    width:6.5%; aspect-ratio:1; min-width:26px;
+    border-radius:22%;
+    background:linear-gradient(155deg, var(--primary), var(--accent));
+    color:#fff; display:flex; align-items:center; justify-content:center;
+    font-family:"Sora",sans-serif; font-weight:700; font-size:clamp(10px,1.3vw,14px);
+  }
+  .brand-mini span{font-family:"Sora",sans-serif; font-weight:600; font-size:clamp(11px,1.4vw,15px); color:var(--screen-text);}
+
+  .status-chip{
+    display:flex; align-items:center; gap:6px;
+    font-size:clamp(9px,1.15vw,12px); font-weight:600; letter-spacing:.03em; text-transform:uppercase;
+    padding:5px 11px; border-radius:999px;
+  }
+  .status-chip .dot{width:7px; height:7px; border-radius:50%;}
+  .status-chip.st-neutral{background:rgba(148,167,186,.16); color:#c6d2de;}
+  .status-chip.st-neutral .dot{background:#93a9c0;}
+  .status-chip.st-active{background:rgba(95,178,214,.16); color:#8fd0ee;}
+  .status-chip.st-active .dot{background:#5fb2d6;}
+  .status-chip.st-warn{background:rgba(217,139,86,.18); color:#f3b98a;}
+  .status-chip.st-warn .dot{background:#d98b56;}
+  .status-chip.st-ok{background:rgba(79,191,143,.18); color:#8fe0bb;}
+  .status-chip.st-ok .dot{background:#4fbf8f;}
+  .status-chip.st-danger{background:rgba(224,119,109,.18); color:#f0a89f;}
+  .status-chip.st-danger .dot{background:#e0776d;}
+
+  .gear{
+    width:6%; aspect-ratio:1; min-width:22px;
+    border-radius:50%;
+    background:var(--screen-surface-2);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--screen-text-muted);
+    font-size:clamp(11px,1.4vw,15px);
+  }
+
+  .screen-body{
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+    padding:2% 8% 6%;
+    gap:clamp(6px,1.6%,16px);
+    position:relative;
+  }
+
+  .qr-wrap{
+    background:#fff; border-radius:10px; padding:3%;
+    display:flex; align-items:center; justify-content:center;
+    width:clamp(90px,20%,190px); aspect-ratio:1;
+    margin-bottom:clamp(4px,1%,10px);
+  }
+  .qr-wrap canvas{width:100%; height:100%; display:block;}
+  .qr-wrap img{display:none;}
+
+  .screen-title{
+    font-family:"Sora", sans-serif; font-weight:700;
+    font-size:clamp(15px,3vw,30px);
+    color:var(--screen-text);
+  }
+  .screen-sub{
+    font-size:clamp(9.5px,1.55vw,15px);
+    color:var(--screen-text-muted);
+    max-width:80%;
+  }
+  .screen-meta{
+    font-family:"JetBrains Mono",monospace;
+    font-size:clamp(9px,1.3vw,13px);
+    color:var(--screen-text-muted);
+    margin-top:clamp(2px,.8%,8px);
+  }
+  .big-amount{
+    font-family:"JetBrains Mono",monospace; font-weight:600;
+    font-size:clamp(20px,4.6vw,44px);
+    color:#fff;
+  }
+  .order-code{
+    font-family:"JetBrains Mono",monospace; font-weight:600;
+    font-size:clamp(11px,1.9vw,18px);
+    background:var(--screen-surface-2);
+    padding:clamp(3px,.6%,6px) clamp(8px,1.4%,16px);
+    border-radius:8px;
+    color:var(--screen-text);
+    letter-spacing:.03em;
+  }
+
+  .icon-circle{
+    width:clamp(34px,8%,64px); aspect-ratio:1;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    margin-bottom:clamp(2px,.6%,6px);
+  }
+  .icon-circle.c-neutral{background:var(--screen-surface-2); color:var(--screen-text-muted);}
+  .icon-circle.c-active{background:rgba(95,178,214,.16); color:#5fb2d6;}
+  .icon-circle.c-warn{background:rgba(217,139,86,.16); color:#d98b56;}
+  .icon-circle.c-ok{background:rgba(79,191,143,.16); color:#4fbf8f;}
+  .icon-circle.c-danger{background:rgba(224,119,109,.16); color:#e0776d;}
+  .icon-circle svg{width:46%; height:46%;}
+
+  .spinner{
+    width:clamp(20px,3.6vw,30px); height:clamp(20px,3.6vw,30px);
+    border-radius:50%;
+    border:3px solid var(--screen-surface-2);
+    border-top-color:#5fb2d6;
+    animation:spin 0.9s linear infinite;
+    margin-bottom:clamp(2px,.6%,6px);
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion: reduce){ .spinner{animation:none;} }
+
+  /* PIN overlay */
+  .pin-overlay{
+    position:absolute; inset:0;
+    background:rgba(6,12,20,.72);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .pin-card{
+    background:var(--screen-surface);
+    border:1px solid var(--screen-border);
+    border-radius:clamp(8px,1.4%,14px);
+    padding:clamp(10px,2.4%,22px) clamp(14px,3.2%,30px);
+    text-align:center;
+    width:clamp(160px,42%,320px);
+  }
+  .pin-card .pin-title{
+    font-family:"Sora",sans-serif; font-weight:600;
+    font-size:clamp(11px,1.7vw,16px);
+    color:var(--screen-text);
+    margin-bottom:clamp(6px,1.4%,14px);
+  }
+  .pin-dots{display:flex; gap:clamp(6px,1.4%,12px); justify-content:center; margin-bottom:clamp(8px,1.6%,16px);}
+  .pin-dots span{
+    width:clamp(8px,1.4%,13px); height:clamp(8px,1.4%,13px); border-radius:50%;
+    background:var(--screen-surface-2); border:1px solid var(--screen-border);
+  }
+  .pin-dots span.filled{background:var(--accent); border-color:var(--accent);}
+  .pin-keypad{
+    display:grid; grid-template-columns:repeat(3,1fr);
+    gap:clamp(4px,1%,8px);
+  }
+  .pin-keypad div{
+    background:var(--screen-surface-2);
+    border-radius:clamp(4px,.8%,7px);
+    padding:clamp(4px,1.1%,9px) 0;
+    font-family:"JetBrains Mono",monospace;
+    font-size:clamp(9px,1.5vw,14px);
+    color:var(--screen-text);
+  }
+
+  footer.legend{
+    margin-top:8px;
+    padding-top:20px;
+    border-top:1px solid var(--neutral-soft);
+    font-size:12px;
+    color:var(--ink-muted);
+  }
+</style>
+
+<div class="shell">
+  <header class="top">
+    <h1>Pantalla del Centro — mockups de estado</h1>
+    <p>Vista de solo salida: la PC del centro nunca recibe touch/mouse del usuario final. Cada bloque de abajo muestra cómo se ve la pantalla en cada momento de una sesión.</p>
+  </header>
+
+  <div class="intro-note">
+    <strong>Nota:</strong> esto es un recorrido estático de las pantallas posibles, en el orden en que ocurrirían durante una sesión real. Ninguna está conectada a Firebase todavía — el estado real de cada sesión lo va a manejar el backend y el agente local de la PC (LibreOffice + SumatraPDF), como describe el CLAUDE.md.
+  </div>
+
+  <!-- 1: IDLE automático -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">01</span>
+      <div>
+        <div class="frame-title">Idle — modo automático activo</div>
+        <p class="frame-desc">Estado por defecto cuando no hay ninguna sesión en curso. El QR es de un solo uso y expira si nadie lo escanea.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-neutral"><span class="dot"></span>En espera</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="qr-wrap"><div class="qr-canvas" data-qr="https://autocentro.app/s/9f7c2a1d"></div></div>
+          <div class="screen-title">Escaneá para imprimir</div>
+          <div class="screen-sub">Abrí la cámara de tu celular y apuntá al código para empezar tu pedido.</div>
+          <div class="screen-meta">este código expira en 2:47</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 2: IDLE manual -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">02</span>
+      <div>
+        <div class="frame-title">Idle — modo manual activo</div>
+        <p class="frame-desc">Cuando el encargado del mostrador togglea a manual, no se ofrece autoservicio: no se muestra QR de sesión.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-neutral"><span class="dot"></span>Atención manual</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="icon-circle c-neutral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+          </div>
+          <div class="screen-title">Atención manual activa</div>
+          <div class="screen-sub">Por ahora las impresiones se hacen en el mostrador. Acercate para que te ayudemos.</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 3: sesión iniciada, esperando archivo -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">03</span>
+      <div>
+        <div class="frame-title">Sesión iniciada — esperando archivo</div>
+        <p class="frame-desc">El QR fue escaneado; el usuario ya está en su celular subiendo y configurando el archivo.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-active"><span class="dot"></span>Sesión activa</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="spinner"></div>
+          <div class="screen-title">Continuá desde tu celular</div>
+          <div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas. Esta pantalla se va a actualizar sola.</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 4: procesando -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">04</span>
+      <div>
+        <div class="frame-title">Procesando el documento</div>
+        <p class="frame-desc">La PC descargó el archivo, lo convierte con LibreOffice si hace falta y cuenta páginas antes de calcular el precio.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-active"><span class="dot"></span>Procesando</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="spinner"></div>
+          <div class="screen-title">Preparando tu documento</div>
+          <div class="screen-sub">Convirtiendo el archivo y contando páginas…</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 5: pago pendiente -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">05</span>
+      <div>
+        <div class="frame-title">Pago pendiente</div>
+        <p class="frame-desc">El precio ya se calculó. El QR de pago se muestra en el celular; acá solo se refleja el monto y el código de pedido.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-warn"><span class="dot"></span>Pago pendiente</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="screen-title">Continuá el pago desde tu celular</div>
+          <div class="big-amount">$1.500</div>
+          <div class="order-code">CE-4821</div>
+          <div class="screen-meta">9:42 restantes antes de que expire el pedido</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 6: imprimiendo -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">06</span>
+      <div>
+        <div class="frame-title">Imprimiendo</div>
+        <p class="frame-desc">Pago confirmado por webhook; SumatraPDF ya está imprimiendo el PDF final sin diálogos.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-active"><span class="dot"></span>Imprimiendo</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="icon-circle c-active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.4"/><path d="M6 17v4h12v-4"/></svg>
+          </div>
+          <div class="screen-title">Imprimiendo tu documento</div>
+          <div class="order-code">CE-4821</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 7: listo -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">07</span>
+      <div>
+        <div class="frame-title">Listo para retirar</div>
+        <p class="frame-desc">Impresión terminada sin errores. La pantalla vuelve a Idle sola después de unos segundos.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-ok"><span class="dot"></span>Listo</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="icon-circle c-ok">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="screen-title">Retirá tu impresión en el mostrador</div>
+          <div class="order-code">CE-4821</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 8: error de impresión -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">08</span>
+      <div>
+        <div class="frame-title">Error de impresión (pago ya confirmado)</div>
+        <p class="frame-desc">Si falla la impresión (sin papel, atascada) después del pago, se avisa para que el encargado lo resuelva manualmente.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-danger"><span class="dot"></span>Necesita atención</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="icon-circle c-danger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.7 17.1a1.6 1.6 0 0 0 1.4 2.4h15.8a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a1.6 1.6 0 0 0-2.8 0z"/></svg>
+          </div>
+          <div class="screen-title">Hubo un problema al imprimir</div>
+          <div class="screen-sub">Tu pago ya fue registrado. Mostrá este código en el mostrador y te ayudamos.</div>
+          <div class="order-code">CE-4821</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 9: expirada -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">09</span>
+      <div>
+        <div class="frame-title">Sesión expirada</div>
+        <p class="frame-desc">Se generó el QR de pago pero pasaron ~10 minutos sin confirmación. La sesión se cierra y la pantalla vuelve a Idle.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-neutral"><span class="dot"></span>Expirada</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="icon-circle c-neutral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.2"/><path d="M12 7.5V12l3 2"/></svg>
+          </div>
+          <div class="screen-title">La sesión expiró</div>
+          <div class="screen-sub">Escaneá el código nuevamente para empezar un pedido nuevo.</div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <!-- 10: PIN overlay -->
+  <div class="frame-block">
+    <div class="frame-label">
+      <span class="frame-index">10</span>
+      <div>
+        <div class="frame-title">Toggle modo automático / manual (PIN)</div>
+        <p class="frame-desc">Al tocar el engranaje se pide un PIN corto antes de cambiar el modo — pensado por si se conecta un mouse/teclado o touch temporal.</p>
+      </div>
+    </div>
+    <div class="monitor">
+      <div class="screen">
+        <div class="status-bar">
+          <div class="brand-mini"><div class="logo-badge-sm">CE</div><span>Centro de Estudiantes</span></div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="status-chip st-neutral"><span class="dot"></span>En espera</div>
+            <div class="gear">⚙</div>
+          </div>
+        </div>
+        <div class="screen-body" style="filter:blur(1.5px); opacity:.5;">
+          <div class="qr-wrap"><div class="qr-canvas" data-qr="https://autocentro.app/s/9f7c2a1d"></div></div>
+          <div class="screen-title">Escaneá para imprimir</div>
+        </div>
+        <div class="pin-overlay">
+          <div class="pin-card">
+            <div class="pin-title">Ingresá el PIN para cambiar el modo</div>
+            <div class="pin-dots"><span class="filled"></span><span class="filled"></span><span class="filled"></span><span></span></div>
+            <div class="pin-keypad">
+              <div>1</div><div>2</div><div>3</div>
+              <div>4</div><div>5</div><div>6</div>
+              <div>7</div><div>8</div><div>9</div>
+              <div></div><div>0</div><div>⌫</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="monitor-stand"></div>
+    </div>
+  </div>
+
+  <footer class="legend">
+    Paleta de estado — <span style="color:#5c6c7e">gris: en espera / neutro</span> · <span style="color:#2e86ab">azul: en curso</span> · <span style="color:#b3541e">ámbar: esperando pago</span> · <span style="color:#1f8a5f">verde: listo</span> · <span style="color:#b3261e">rojo: necesita atención</span>.
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function(){
+  document.querySelectorAll('.qr-canvas').forEach(function(el){
+    var value = el.getAttribute('data-qr');
+    if (window.QRCode){
+      new QRCode(el, { text: value, width: 300, height: 300, correctLevel: QRCode.CorrectLevel.M });
+    }
+  });
+})();
+</script>
