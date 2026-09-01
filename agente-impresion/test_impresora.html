@@ -209,6 +209,13 @@
     elEstadoActual.className = tipoBadge ? `badge badge-${tipoBadge}` : '';
   }
 
+  // Nombre (parcial, sin distinguir mayúsculas) de la impresora del centro, solo para
+  // preseleccionarla en el dropdown y ahorrar un clic al testear — el nombre EXACTO tal
+  // como lo ve Windows (que puede venir con sufijo "PCL 6"/"PS3"/etc. según el driver
+  // instalado) es el que hay que confirmar y guardar en la config real más adelante,
+  // no este valor.
+  const IMPRESORA_PREFERIDA = 'RICOH MP 501';
+
   async function cargarImpresoras() {
     elSelectImpresora.innerHTML = '<option value="">(cargando...)</option>';
     const impresoras = await listarImpresoras();
@@ -217,11 +224,19 @@
       elSelectImpresora.innerHTML = '<option value="">(no se encontraron impresoras)</option>';
       return;
     }
+    const impresoraPreferidaExiste = impresoras.some((imp) =>
+      imp.nombre.toUpperCase().includes(IMPRESORA_PREFERIDA)
+    );
     for (const imp of impresoras) {
       const opt = document.createElement('option');
       opt.value = imp.nombre;
       opt.textContent = imp.nombre + (imp.esPredeterminada ? ' (predeterminada)' : '');
-      if (imp.esPredeterminada) opt.selected = true;
+      const esLaPreferida = imp.nombre.toUpperCase().includes(IMPRESORA_PREFERIDA);
+      // Preferimos la Ricoh del centro si aparece en la lista; si no está, caemos al
+      // comportamiento anterior (la que Windows tenga marcada como predeterminada).
+      if (esLaPreferida || (!impresoraPreferidaExiste && imp.esPredeterminada)) {
+        opt.selected = true;
+      }
       elSelectImpresora.appendChild(opt);
     }
   }
