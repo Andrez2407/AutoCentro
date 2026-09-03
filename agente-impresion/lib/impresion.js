@@ -134,7 +134,7 @@ function consultarSpooler(nombreImpresora) {
 
     exec(
       `powershell -NoProfile -NonInteractive -Command "${script.replace(/"/g, '\\"')}"`,
-      { windowsHide: true, timeout: 10_000 },
+      { windowsHide: true, timeout: 20_000 },
       (err, stdout) => {
         if (err) {
           reject(err);
@@ -213,9 +213,13 @@ async function imprimir(opciones, onEvento) {
     let estado;
     try {
       estado = await consultarSpooler(opciones.nombreImpresora);
+      console.log('[debug] estado spooler:', JSON.stringify(estado));
     } catch (err) {
       // Un fallo puntual de PowerShell no es necesariamente un error de impresión;
-      // seguimos intentando hasta el timeout.
+      // seguimos intentando hasta el timeout. Lo logueamos igual para poder diagnosticar
+      // si TODAS las consultas están fallando (p.ej. timeout muy corto contra una
+      // impresora de red, o el nombre de la impresora no matchea).
+      console.log('[debug] fallo consultando el spooler:', err.message);
       await esperar(POLL_INTERVAL_MS);
       continue;
     }
