@@ -37,6 +37,74 @@ const TIPOS_ERROR = {
   DESCONOCIDO: 'desconocido',
 };
 
+// --- Banderas crudas del spooler de Windows (winspool.h) --------------------
+// IMPORTANTE: Get-Printer/Get-PrintJob NO devuelven texto ("PaperOut", "Offline", etc.)
+// al pasarlos por ConvertTo-Json — devuelven el valor numérico crudo del enum de flags.
+// Se confirmó con datos reales de la Ricoh MP 501: PrinterStatus=64 al sacarle el papel
+// (= 0x40 = PRINTER_STATUS_PAPER_PROBLEM) y JobStatus=8208/12288 mientras imprimía bien
+// (= 0x2010/0x3000 = PRINTING+RETAINED / COMPLETE+RETAINED). Por eso la clasificación de
+// abajo es aritmética de bits, no matching de texto.
+const JOB_STATUS = {
+  PAUSED: 0x00000001,
+  ERROR: 0x00000002,
+  DELETING: 0x00000004,
+  SPOOLING: 0x00000008,
+  PRINTING: 0x00000010,
+  OFFLINE: 0x00000020,
+  PAPEROUT: 0x00000040,
+  PRINTED: 0x00000080,
+  DELETED: 0x00000100,
+  BLOCKED_DEVQ: 0x00000200,
+  USER_INTERVENTION: 0x00000400,
+};
+
+const PRINTER_STATUS = {
+  PAUSED: 0x00000001,
+  ERROR: 0x00000002,
+  PENDING_DELETION: 0x00000004,
+  PAPER_JAM: 0x00000008,
+  PAPER_OUT: 0x00000010,
+  MANUAL_FEED: 0x00000020,
+  PAPER_PROBLEM: 0x00000040,
+  OFFLINE: 0x00000080,
+  IO_ACTIVE: 0x00000100,
+  BUSY: 0x00000200,
+  PRINTING: 0x00000400,
+  OUTPUT_BIN_FULL: 0x00000800,
+  NOT_AVAILABLE: 0x00001000,
+  WAITING: 0x00002000,
+  PROCESSING: 0x00004000,
+  INITIALIZING: 0x00008000,
+  WARMING_UP: 0x00010000,
+  TONER_LOW: 0x00020000,
+  NO_TONER: 0x00040000,
+  PAGE_PUNT: 0x00080000,
+  USER_INTERVENTION: 0x00100000,
+  OUT_OF_MEMORY: 0x00200000,
+  DOOR_OPEN: 0x00400000,
+  SERVER_UNKNOWN: 0x00800000,
+  POWER_SAVE: 0x01000000,
+};
+
+// Combinaciones de banderas que consideramos "hay un problema", para chequear con un
+// solo AND bit a bit en vez de comparar campo por campo.
+const PRINTER_STATUS_PROBLEMA =
+  PRINTER_STATUS.ERROR |
+  PRINTER_STATUS.PAPER_JAM |
+  PRINTER_STATUS.PAPER_OUT |
+  PRINTER_STATUS.PAPER_PROBLEM |
+  PRINTER_STATUS.OFFLINE |
+  PRINTER_STATUS.OUTPUT_BIN_FULL |
+  PRINTER_STATUS.NOT_AVAILABLE |
+  PRINTER_STATUS.NO_TONER |
+  PRINTER_STATUS.DOOR_OPEN |
+  PRINTER_STATUS.USER_INTERVENTION |
+  PRINTER_STATUS.OUT_OF_MEMORY |
+  PRINTER_STATUS.SERVER_UNKNOWN;
+
+const JOB_STATUS_PROBLEMA =
+  JOB_STATUS.ERROR | JOB_STATUS.OFFLINE | JOB_STATUS.PAPEROUT | JOB_STATUS.BLOCKED_DEVQ | JOB_STATUS.USER_INTERVENTION;
+
 /**
  * Arma el string de -print-settings a partir de las opciones elegidas en la UI.
  * @param {{copias:number, color:boolean, duplex:string, ajustarAHoja?:boolean}} opciones
@@ -155,15 +223,16 @@ function consultarSpooler(nombreImpresora) {
  * Traduce el estado crudo del spooler a uno de los TIPOS_ERROR fijos.
  */
 function clasificarError({ printerStatus, jobStatus }) {
-  const texto = `${printerStatus || ''} ${jobStatus || ''}`.toLowerCase();
+  const p = Number(printerStatus) || 0;
+  const j = Number(jobStatus) || 0;
 
-  if (texto.includes('paperout') || texto.includes('paper out') || texto.includes('sin papel')) {
+  if ((p & PRINTER_STATUS.PAPER_OUT) || (p & PRINTER_STATUS.PAPER_PROBLEM) || (j & JOB_STATUS.PAPEROUT)) {
     return TIPOS_ERROR.SIN_PAPEL;
   }
-  if (texto.includes('paperjam') || texto.includes('paper jam') || texto.includes('jammed')) {
+  if (p & PRINTER_STATUS.PAPER_JAM) {
     return TIPOS_ERROR.ATASCADA;
   }
-  if (texto.includes('offline') || texto.includes('not available') || texto.includes('notavailable')) {
+  if ((p & PRINTER_STATUS.OFFLINE) || (p & PRINTER_STATUS.SERVER_UNKNOWN) || (j & JOB_STATUS.OFFLINE)) {
     return TIPOS_ERROR.OFFLINE;
   }
   return TIPOS_ERROR.DESCONOCIDO;
@@ -228,6 +297,8 @@ async function imprimir(opciones, onEvento) {
     const jobs = Array.isArray(estado?.jobs) ? estado.jobs : estado?.jobs ? [estado.jobs] : [];
     const jobPropio = jobs.find((j) => (j.DocumentName || '').includes(nombreDocumento));
 
+    const printerStatusNum = Number(printerStatus) || 0;
+
     if (jobPropio) {
       vistoEnCola = true;
 
@@ -236,26 +307,39 @@ async function imprimir(opciones, onEvento) {
         onEvento({ tipo: 'print-job:printing', message: 'El trabajo está en la cola de impresión.' });
       }
 
-      const jobStatusTexto = String(jobPropio.JobStatus || '');
-      if (/error|blocked|paperout|paperjam|offline/i.test(jobStatusTexto)) {
-        const errorType = clasificarError({ printerStatus, jobStatus: jobStatusTexto });
+      const jobStatusNum = Number(jobPropio.JobStatus) || 0;
+      if ((jobStatusNum & JOB_STATUS_PROBLEMA) || (printerStatusNum & PRINTER_STATUS_PROBLEMA)) {
+        const errorType = clasificarError({ printerStatus: printerStatusNum, jobStatus: jobStatusNum });
         onEvento({
           tipo: 'print-job:error',
           errorType,
-          message: `El spooler reporta un problema con el trabajo (JobStatus="${jobStatusTexto}", PrinterStatus="${printerStatus}").`,
+          message: `El spooler reporta un problema con el trabajo (JobStatus=${jobStatusNum}, PrinterStatus=${printerStatusNum}).`,
         });
         return;
       }
     } else if (vistoEnCola) {
-      // Estaba en la cola y ya no está: se imprimió (o se descartó sin error visible).
+      // Estaba en la cola y ya no está. OJO: esto NO es éxito automático — algunos
+      // drivers (confirmado con la Ricoh MP 501) sacan el trabajo de la cola aunque haya
+      // fallado (p.ej. falta de papel), y el problema solo se ve en el PrinterStatus del
+      // último poll, no en el JobStatus. Por eso volvemos a chequear acá antes de avisar
+      // éxito.
+      if (printerStatusNum & PRINTER_STATUS_PROBLEMA) {
+        const errorType = clasificarError({ printerStatus: printerStatusNum, jobStatus: 0 });
+        onEvento({
+          tipo: 'print-job:error',
+          errorType,
+          message: `El trabajo salió de la cola pero la impresora reporta un problema (PrinterStatus=${printerStatusNum}).`,
+        });
+        return;
+      }
       onEvento({ tipo: 'print-job:success', message: 'El trabajo salió de la cola sin errores reportados.' });
       return;
-    } else if (printerStatus && /offline|not.?available/i.test(String(printerStatus))) {
-      // Nunca llegó a aparecer en la cola y la impresora está offline.
+    } else if (printerStatusNum & PRINTER_STATUS_PROBLEMA) {
+      // Nunca llegó a aparecer en la cola y la impresora ya reporta un problema.
       onEvento({
         tipo: 'print-job:error',
-        errorType: TIPOS_ERROR.OFFLINE,
-        message: `La impresora reporta PrinterStatus="${printerStatus}".`,
+        errorType: clasificarError({ printerStatus: printerStatusNum, jobStatus: 0 }),
+        message: `La impresora reporta un problema antes de que el trabajo entre a la cola (PrinterStatus=${printerStatusNum}).`,
       });
       return;
     }

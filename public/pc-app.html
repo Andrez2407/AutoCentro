@@ -8,8 +8,8 @@
     --screen-text:#eef4fa;
     --screen-text-muted:#93a9c0;
     --screen-border:#28405a;
-    --primary:#1d4e89;
-    --accent:#2e86ab;
+    --primary:#d9531e;
+    --accent:#f2994a;
   }
   *{box-sizing:border-box;}
   html,body{height:100%;}
@@ -51,10 +51,10 @@
   .status-chip .dot{width:8px; height:8px; border-radius:50%;}
   .status-chip.st-neutral{background:rgba(148,167,186,.16); color:#c6d2de;}
   .status-chip.st-neutral .dot{background:#93a9c0;}
-  .status-chip.st-active{background:rgba(95,178,214,.16); color:#8fd0ee;}
-  .status-chip.st-active .dot{background:#5fb2d6;}
-  .status-chip.st-warn{background:rgba(217,139,86,.18); color:#f3b98a;}
-  .status-chip.st-warn .dot{background:#d98b56;}
+  .status-chip.st-active{background:rgba(245,176,106,.16); color:#f8c68f;}
+  .status-chip.st-active .dot{background:#f5b06a;}
+  .status-chip.st-warn{background:rgba(217,176,74,.18); color:#e8cf8f;}
+  .status-chip.st-warn .dot{background:#d9b04a;}
   .status-chip.st-ok{background:rgba(79,191,143,.18); color:#8fe0bb;}
   .status-chip.st-ok .dot{background:#4fbf8f;}
   .status-chip.st-danger{background:rgba(224,119,109,.18); color:#f0a89f;}
@@ -82,10 +82,23 @@
   .qr-wrap{
     background:#fff; border-radius:16px; padding:22px;
     display:flex; align-items:center; justify-content:center;
-    width:min(30vh, 320px); aspect-ratio:1;
+    /* Tamaño FIJO en píxeles (no vh + aspect-ratio): eso combinado con flex
+       podía dar un recuadro más ancho que alto en algunos navegadores y el QR
+       se salía por los costados. Con ancho y alto fijos e iguales, no hay
+       forma de que el recuadro deje de ser cuadrado. */
+    width:480px; height:480px;
+    flex-shrink:0;
     margin-bottom:8px;
   }
-  .qr-wrap canvas{width:100%; height:100%; display:block;}
+  .qr-wrap.qr-wrap-sm{ width:350px; height:350px; }
+  .qr-wrap canvas{
+    width:100%; height:100%; display:block;
+    min-width:0; min-height:0; max-width:100%; max-height:100%;
+    /* Sin esto, un <canvas> (elemento "reemplazado", como una imagen) no se
+       achica por debajo de su tamaño intrínseco en un contenedor flex aunque
+       tenga width:100% — por eso el QR se salía del recuadro blanco cuando el
+       recuadro terminaba siendo más chico que los px reales del canvas. */
+  }
   .qr-wrap img{display:none;} /* qrcodejs agrega una <img> de respaldo del mismo tamaño; la ocultamos */
 
   .screen-title{font-family:"Sora", sans-serif; font-weight:700; font-size:clamp(22px,4vw,42px);}
@@ -127,14 +140,14 @@
     display:flex; align-items:center; justify-content:center; margin-bottom:6px;
   }
   .icon-circle.c-neutral{background:var(--screen-surface-2); color:var(--screen-text-muted);}
-  .icon-circle.c-active{background:rgba(95,178,214,.16); color:#5fb2d6;}
+  .icon-circle.c-active{background:rgba(245,176,106,.16); color:#f5b06a;}
   .icon-circle.c-ok{background:rgba(79,191,143,.16); color:#4fbf8f;}
   .icon-circle.c-danger{background:rgba(224,119,109,.16); color:#e0776d;}
   .icon-circle svg{width:44px; height:44px;}
 
   .spinner{
     width:34px; height:34px; border-radius:50%;
-    border:3px solid var(--screen-surface-2); border-top-color:#5fb2d6;
+    border:3px solid var(--screen-surface-2); border-top-color:#f5b06a;
     animation:spin 0.9s linear infinite; margin-bottom:6px;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -454,7 +467,7 @@
           ${previewHtml(trabajo)}
           <div class="pago-qr-col">
             <div class="screen-title" style="font-size:clamp(16px,2.4vw,26px);">Escaneá para pagar</div>
-            <div class="qr-wrap" id="qr-pago" style="width:min(22vh,230px);"></div>
+            <div class="qr-wrap qr-wrap-sm" id="qr-pago"></div>
             <div class="big-amount" style="font-size:clamp(20px,3.4vw,34px);">${monto}</div>
             <div class="order-code">${codigo}</div>
             ${avisoEspera}

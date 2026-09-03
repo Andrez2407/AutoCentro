@@ -5,12 +5,12 @@
     --page-bg:#eef2f7;
     --ink:#152233;
     --ink-muted:#5c6c7e;
-    --primary:#1d4e89;
-    --primary-dark:#123657;
-    --accent:#2e86ab;
-    --accent-soft:#dceefa;
+    --primary:#d9531e;
+    --primary-dark:#a83d12;
+    --accent:#f2994a;
+    --accent-soft:#fde9d5;
     --ok:#1f8a5f; --ok-soft:#dff3ea;
-    --warn:#b3541e; --warn-soft:#fbe9dd;
+    --warn:#a66a00; --warn-soft:#faf0d7;
     --danger:#b3261e; --danger-soft:#fbe2df;
     --neutral:#5c6c7e; --neutral-soft:#e7ecf1;
     --screen-bg:#0c1622;
@@ -24,15 +24,15 @@
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --page-bg:#0f1720; --ink:#e8eef4; --ink-muted:#94a7ba;
-      --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
-      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+      --primary:#f2984d; --primary-dark:#f7b787; --accent:#f5b06a; --accent-soft:#3a2712;
+      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d9b04a; --warn-soft:#3a3118;
       --danger:#e0776d; --danger-soft:#3a1f1d; --neutral:#94a7ba; --neutral-soft:#1c2b39;
     }
   }
   :root[data-theme="dark"]{
     --page-bg:#0f1720; --ink:#e8eef4; --ink-muted:#94a7ba;
-    --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
-    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+    --primary:#f2984d; --primary-dark:#f7b787; --accent:#f5b06a; --accent-soft:#3a2712;
+    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d9b04a; --warn-soft:#3a3118;
     --danger:#e0776d; --danger-soft:#3a1f1d; --neutral:#94a7ba; --neutral-soft:#1c2b39;
   }
 
@@ -122,10 +122,10 @@
   .status-chip .dot{width:7px; height:7px; border-radius:50%;}
   .status-chip.st-neutral{background:rgba(148,167,186,.16); color:#c6d2de;}
   .status-chip.st-neutral .dot{background:#93a9c0;}
-  .status-chip.st-active{background:rgba(95,178,214,.16); color:#8fd0ee;}
-  .status-chip.st-active .dot{background:#5fb2d6;}
-  .status-chip.st-warn{background:rgba(217,139,86,.18); color:#f3b98a;}
-  .status-chip.st-warn .dot{background:#d98b56;}
+  .status-chip.st-active{background:rgba(245,176,106,.16); color:#f8c68f;}
+  .status-chip.st-active .dot{background:#f5b06a;}
+  .status-chip.st-warn{background:rgba(217,176,74,.18); color:#e8cf8f;}
+  .status-chip.st-warn .dot{background:#d9b04a;}
   .status-chip.st-ok{background:rgba(79,191,143,.18); color:#8fe0bb;}
   .status-chip.st-ok .dot{background:#4fbf8f;}
   .status-chip.st-danger{background:rgba(224,119,109,.18); color:#f0a89f;}
@@ -155,7 +155,7 @@
     width:clamp(90px,20%,190px); aspect-ratio:1;
     margin-bottom:clamp(4px,1%,10px);
   }
-  .qr-wrap canvas{width:100%; height:100%; display:block;}
+  .qr-wrap canvas{width:100%; height:100%; display:block; min-width:0; min-height:0; max-width:100%; max-height:100%;}
   .qr-wrap img{display:none;}
 
   .screen-title{
@@ -196,8 +196,8 @@
     margin-bottom:clamp(2px,.6%,6px);
   }
   .icon-circle.c-neutral{background:var(--screen-surface-2); color:var(--screen-text-muted);}
-  .icon-circle.c-active{background:rgba(95,178,214,.16); color:#5fb2d6;}
-  .icon-circle.c-warn{background:rgba(217,139,86,.16); color:#d98b56;}
+  .icon-circle.c-active{background:rgba(245,176,106,.16); color:#f5b06a;}
+  .icon-circle.c-warn{background:rgba(217,176,74,.16); color:#d9b04a;}
   .icon-circle.c-ok{background:rgba(79,191,143,.16); color:#4fbf8f;}
   .icon-circle.c-danger{background:rgba(224,119,109,.16); color:#e0776d;}
   .icon-circle svg{width:46%; height:46%;}
@@ -206,7 +206,7 @@
     width:clamp(20px,3.6vw,30px); height:clamp(20px,3.6vw,30px);
     border-radius:50%;
     border:3px solid var(--screen-surface-2);
-    border-top-color:#5fb2d6;
+    border-top-color:#f5b06a;
     animation:spin 0.9s linear infinite;
     margin-bottom:clamp(2px,.6%,6px);
   }
@@ -576,7 +576,7 @@
   </div>
 
   <footer class="legend">
-    Paleta de estado — <span style="color:#5c6c7e">gris: en espera / neutro</span> · <span style="color:#2e86ab">azul: en curso</span> · <span style="color:#b3541e">ámbar: esperando pago</span> · <span style="color:#1f8a5f">verde: listo</span> · <span style="color:#b3261e">rojo: necesita atención</span>.
+    Paleta de estado — <span style="color:#5c6c7e">gris: en espera / neutro</span> · <span style="color:#f2994a">naranja: en curso</span> · <span style="color:#a66a00">ámbar: esperando pago</span> · <span style="color:#1f8a5f">verde: listo</span> · <span style="color:#b3261e">rojo: necesita atención</span>.
   </footer>
 </div>
 

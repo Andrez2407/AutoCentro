@@ -1,4 +1,5 @@
 <title>Fotocopiadora CE — tu pedido</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
   :root{
@@ -8,14 +9,14 @@
     --text:#152233;
     --text-muted:#5c6c7e;
     --border:#d7e2ee;
-    --primary:#1d4e89;
-    --primary-dark:#123657;
-    --accent:#2e86ab;
-    --accent-soft:#dceefa;
+    --primary:#d9531e;
+    --primary-dark:#a83d12;
+    --accent:#f2994a;
+    --accent-soft:#fde9d5;
     --ok:#1f8a5f;
     --ok-soft:#dff3ea;
-    --warn:#b3541e;
-    --warn-soft:#fbe9dd;
+    --warn:#a66a00;
+    --warn-soft:#faf0d7;
     --shadow: 0 1px 2px rgba(21,34,51,.05), 0 8px 24px -12px rgba(21,34,51,.18);
     color-scheme: light;
   }
@@ -23,8 +24,8 @@
     :root:not([data-theme="light"]){
       --bg:#0f1720; --surface:#16212c; --surface-2:#1c2b39;
       --text:#e8eef4; --text-muted:#94a7ba; --border:#293c4d;
-      --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
-      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+      --primary:#f2984d; --primary-dark:#f7b787; --accent:#f5b06a; --accent-soft:#3a2712;
+      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d9b04a; --warn-soft:#3a3118;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
       color-scheme: dark;
     }
@@ -32,8 +33,8 @@
   :root[data-theme="dark"]{
     --bg:#0f1720; --surface:#16212c; --surface-2:#1c2b39;
     --text:#e8eef4; --text-muted:#94a7ba; --border:#293c4d;
-    --primary:#5b9bd8; --primary-dark:#8ec0ea; --accent:#5fb2d6; --accent-soft:#1c3546;
-    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d98b56; --warn-soft:#3a2718;
+    --primary:#f2984d; --primary-dark:#f7b787; --accent:#f5b06a; --accent-soft:#3a2712;
+    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d9b04a; --warn-soft:#3a3118;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
     color-scheme: dark;
   }
@@ -137,6 +138,46 @@
   .file-status{font-size:11.5px; color:var(--text-muted); margin-top:1px;}
   .file-remove{border:none; background:none; color:var(--text-muted); cursor:pointer; font-size:18px; line-height:1; padding:4px 6px; border-radius:6px;}
   .file-remove:hover{background:var(--border); color:var(--text);}
+
+  .preview-box{
+    margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .preview-canvas-wrap{
+    position:relative;
+    max-width:100%;
+    border:1px solid var(--border); border-radius:10px; overflow:hidden;
+    background:var(--surface-2);
+    box-shadow:var(--shadow);
+  }
+  .preview-canvas-wrap canvas{
+    display:block; max-width:100%; height:auto;
+    /* Mientras se renderiza la página siguiente, dejamos la anterior visible
+       en vez de parpadear a blanco — se actualiza recién cuando termina. */
+  }
+  .preview-spinner{
+    position:absolute; inset:0;
+    background:rgba(255,255,255,.55);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .preview-spinner::after{
+    content:''; width:22px; height:22px; border-radius:50%;
+    border:3px solid var(--border); border-top-color:var(--primary);
+    animation:preview-spin .8s linear infinite;
+  }
+  @keyframes preview-spin{to{transform:rotate(360deg);}}
+  .preview-nav{display:flex; align-items:center; justify-content:center; gap:14px;}
+  .preview-caption{font-size:11.5px; color:var(--text-muted); font-family:"JetBrains Mono",monospace; min-width:88px; text-align:center;}
+  .preview-nav-btn{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    border:1px solid var(--border); background:var(--surface); color:var(--text);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .preview-nav-btn:hover:not(:disabled){background:var(--accent-soft); border-color:var(--accent);}
+  .preview-nav-btn:disabled{opacity:.35; cursor:not-allowed;}
+  .preview-unavailable{
+    margin-top:14px; font-size:12px; color:var(--text-muted); text-align:center;
+    background:var(--surface-2); border:1px dashed var(--border); border-radius:10px; padding:12px;
+  }
 
   fieldset{border:none; padding:0; margin:0 0 16px;}
   fieldset:last-of-type{margin-bottom:0;}
@@ -257,6 +298,25 @@
           <div class="file-status" id="file-status">—</div>
         </div>
         <button class="file-remove" id="file-remove" aria-label="Quitar archivo" type="button">✕</button>
+      </div>
+
+      <div id="preview-box" class="preview-box" hidden>
+        <div class="preview-canvas-wrap">
+          <canvas id="preview-canvas"></canvas>
+          <div class="preview-spinner" id="preview-spinner" hidden></div>
+        </div>
+        <div class="preview-nav">
+          <button type="button" class="preview-nav-btn" id="preview-prev" aria-label="Página anterior">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="preview-caption" id="preview-caption">Página 1</div>
+          <button type="button" class="preview-nav-btn" id="preview-next" aria-label="Página siguiente">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="preview-unavailable" class="preview-unavailable" hidden>
+        No podemos mostrar una vista previa de Word/PowerPoint acá — se genera recién al convertir el archivo.
       </div>
     </div>
 
@@ -527,7 +587,10 @@
     totalPages: null,
     mode: 'simple',
     copies: 1,
-    useRange: false
+    useRange: false,
+    pdfDoc: null,          // documento de pdf.js ya parseado, para poder re-renderizar
+                           // otra página (ej: al cambiar el rango) sin releer el archivo
+    previewPage: null      // página que se está mostrando ahora mismo en la vista previa
   };
 
   const $ = (id) => document.getElementById(id);
@@ -556,6 +619,14 @@
   const rangeFrom = $('range-from');
   const rangeTo = $('range-to');
   const rangeError = $('range-error');
+
+  const previewBox = $('preview-box');
+  const previewCanvas = $('preview-canvas');
+  const previewSpinner = $('preview-spinner');
+  const previewCaption = $('preview-caption');
+  const previewUnavailable = $('preview-unavailable');
+  const previewPrev = $('preview-prev');
+  const previewNext = $('preview-next');
 
   const summaryHint = $('summary-hint');
   const summaryBody = $('summary-body');
@@ -621,6 +692,9 @@
     state.file = null;
     state.fileType = null;
     state.totalPages = null;
+    state.pdfDoc = null;
+    state.previewPage = null;
+    previewRenderToken++; // invalida cualquier render de página en vuelo
     fileInput.value = '';
     fileRow.hidden = true;
     optionsCard.hidden = true;
@@ -631,6 +705,8 @@
     rangeFields.classList.remove('open');
     rangeFrom.value = '';
     rangeTo.value = '';
+    previewBox.hidden = true;
+    previewUnavailable.hidden = true;
     updateSummary();
   }
 
@@ -648,6 +724,9 @@
     state.file = f;
     state.fileType = type;
     state.totalPages = null;
+    state.pdfDoc = null;
+    state.previewPage = null;
+    previewRenderToken++; // invalida cualquier render de página en vuelo del archivo anterior
 
     fileRow.hidden = false;
     fileIcon.textContent = type === 'pdf' ? 'PDF' : (type === 'docx' ? 'DOCX' : 'PPTX');
@@ -657,10 +736,14 @@
     if (type === 'pdf') {
       manualPagesField.hidden = true;
       fileStatus.textContent = 'Detectando cantidad de páginas…';
+      previewBox.hidden = true;
+      previewUnavailable.hidden = true;
       readPdfPageCount(f);
     } else {
       manualPagesField.hidden = false;
       fileStatus.textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB · se va a convertir a PDF en el centro';
+      previewBox.hidden = true;
+      previewUnavailable.hidden = false;
     }
     updateSummary();
 
@@ -679,11 +762,13 @@
       const typedArray = new Uint8Array(this.result);
       pdfjsLib.getDocument({ data: typedArray }).promise.then((doc) => {
         state.totalPages = doc.numPages;
+        state.pdfDoc = doc;
         fileStatus.textContent = doc.numPages + ' páginas detectadas · ' + (f.size/1024/1024).toFixed(2) + ' MB';
         rangeFrom.max = doc.numPages;
         rangeTo.max = doc.numPages;
         rangeTo.value = doc.numPages;
         updateSummary();
+        actualizarVistaPreviaLocal();
         subirPreviewPdf(doc);
       }).catch(() => {
         fileStatus.textContent = 'No pudimos leer el PDF automáticamente. Ingresá la cantidad de páginas.';
@@ -693,6 +778,101 @@
     };
     reader.readAsArrayBuffer(f);
   }
+
+  // ---- Vista previa LOCAL en el celular (no sube nada a Storage, es solo para
+  // que el usuario vea qué está por imprimir) ----
+  // Se re-renderiza cada vez que cambia la página elegida (rango "Desde"), así
+  // el usuario ve exactamente esa página del PDF. `previewRenderToken` evita que
+  // un render viejo (por ej. de una página que ya no corresponde) pise a uno más
+  // nuevo si el usuario cambia el rango rápido, dos veces seguidas.
+  let previewRenderToken = 0;
+
+  // Rango de páginas que REALMENTE se van a imprimir ahora mismo. La vista
+  // previa (imagen y flechitas) tiene que quedar siempre adentro de este rango
+  // — si mostrara páginas de afuera, el usuario podría creer que se imprimen
+  // páginas que en realidad quedaron excluidas.
+  function rangoDeImpresion(){
+    const total = state.totalPages;
+    if (!total) return { from: 1, to: 1 };
+    if (!state.useRange) return { from: 1, to: total };
+    const from = parseInt(rangeFrom.value, 10);
+    const to = parseInt(rangeTo.value, 10);
+    if (!from || !to || from < 1 || to > total || from > to) {
+      // Rango incompleto/inválido mientras el usuario todavía lo está tipeando:
+      // mostramos como referencia la página "Desde" sola.
+      const desde = (from && from >= 1 && from <= total) ? from : 1;
+      return { from: desde, to: desde };
+    }
+    return { from, to };
+  }
+
+  function actualizarVistaPreviaLocal(){
+    if (state.fileType !== 'pdf' || !state.pdfDoc) return;
+    const rango = rangoDeImpresion();
+    // Si la página que se estaba mostrando quedó afuera del rango nuevo (o
+    // todavía no se mostró ninguna), saltamos al principio del rango. Si sigue
+    // adentro, la dejamos como está — no hace falta reordenar la vista por un
+    // cambio que no la afecta (ej: tocar "Hasta" sin mover "Desde").
+    const actual = state.previewPage;
+    const pagina = (actual && actual >= rango.from && actual <= rango.to) ? actual : rango.from;
+    renderPreviewPage(pagina);
+  }
+
+  function actualizarBotonesNav(){
+    const rango = rangoDeImpresion();
+    previewPrev.disabled = !state.previewPage || state.previewPage <= rango.from;
+    previewNext.disabled = !state.previewPage || state.previewPage >= rango.to;
+  }
+
+  function renderPreviewPage(pageNum){
+    const myToken = ++previewRenderToken;
+    state.previewPage = pageNum;
+    previewBox.hidden = false;
+    previewUnavailable.hidden = true;
+    previewSpinner.hidden = false;
+    actualizarBotonesNav();
+
+    state.pdfDoc.getPage(pageNum).then((page) => {
+      if (myToken !== previewRenderToken) return; // quedó vieja, hay un render más nuevo en curso
+      const targetWidth = 420; // suficiente para el ancho del celular, liviano para renderizar rápido
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = targetWidth / baseViewport.width;
+      const viewport = page.getViewport({ scale });
+
+      previewCanvas.width = viewport.width;
+      previewCanvas.height = viewport.height;
+      const ctx = previewCanvas.getContext('2d');
+
+      return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(() => {
+        if (myToken !== previewRenderToken) return;
+        const rango = rangoDeImpresion();
+        previewCaption.textContent = state.useRange
+          ? 'Página ' + pageNum + ' · se imprime ' + rango.from + '–' + rango.to + ' de ' + state.totalPages
+          : 'Página ' + pageNum + ' de ' + state.totalPages;
+        previewSpinner.hidden = true;
+      });
+    }).catch(() => {
+      if (myToken !== previewRenderToken) return;
+      previewSpinner.hidden = true;
+      previewCaption.textContent = 'No pudimos renderizar esta página';
+    });
+  }
+
+  // Las flechitas navegan SOLO dentro del rango que se va a imprimir — la vista
+  // previa tiene que mostrar exactamente lo que sale por la impresora, así que
+  // no tiene sentido dejar mirar páginas que quedaron afuera del pedido.
+  previewPrev.addEventListener('click', () => {
+    if (!state.pdfDoc || !state.previewPage) return;
+    const rango = rangoDeImpresion();
+    if (state.previewPage <= rango.from) return;
+    renderPreviewPage(state.previewPage - 1);
+  });
+  previewNext.addEventListener('click', () => {
+    if (!state.pdfDoc || !state.previewPage) return;
+    const rango = rangoDeImpresion();
+    if (state.previewPage >= rango.to) return;
+    renderPreviewPage(state.previewPage + 1);
+  });
 
   // Genera una miniatura de la primera página del PDF y la sube a Storage, para
   // que la pantalla de la PC la muestre junto al QR de pago. Solo funciona con
@@ -751,8 +931,12 @@
     state.useRange = rangeToggle.checked;
     rangeFields.classList.toggle('open', state.useRange);
     updateSummary();
+    actualizarVistaPreviaLocal();
   });
-  [rangeFrom, rangeTo].forEach(el => el.addEventListener('input', updateSummary));
+  [rangeFrom, rangeTo].forEach(el => el.addEventListener('input', () => {
+    updateSummary();
+    actualizarVistaPreviaLocal();
+  }));
   manualPagesInput.addEventListener('input', () => {
     const v = parseInt(manualPagesInput.value, 10);
     state.totalPages = (v && v > 0) ? v : null;
