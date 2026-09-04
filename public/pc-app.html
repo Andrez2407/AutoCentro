@@ -370,6 +370,13 @@
   function renderEstado(sesionId, token, data){
     sesionIdActual = sesionId;
     estadoActual = data.estado;
+    // El timer de expiración de 'idle' (3 min sin escanear) solo tiene que aplicar
+    // mientras la sesión está en 'idle'. Antes no se cancelaba al avanzar de estado, así
+    // que podía disparar "expirada" por encima de 'pagado'/'listo' si esos 3 minutos se
+    // cumplían en el medio del flujo (p.ej. durante una prueba con pausas) — tapando el
+    // cartel de éxito con un salto directo a una sesión nueva. El caso 'idle' de abajo lo
+    // vuelve a armar con el expires_at correcto si corresponde.
+    clearTimeout(idleTimer);
     switch (data.estado) {
       case 'idle': {
         setStatus('st-neutral', 'En espera');
