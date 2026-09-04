@@ -284,6 +284,9 @@
   let idleTimer = null;
   let sesionIdActual = null;
   let estadoActual = null;
+  let configCentro = null; // último doc de config_centro/{CENTRO_ID}, para leer impresora_nombre
+  let sesionConImpresionIniciada = null; // evita re-disparar la impresión real en cada snapshot
+  let desuscribirEventosImpresion = null;
 
   auth.signInAnonymously().then(() => {
     watchModoAutomatico();
@@ -295,6 +298,7 @@
   function watchModoAutomatico(){
     db.collection('config_centro').doc(CENTRO_ID).onSnapshot((doc) => {
       const data = doc.data();
+      configCentro = data || null;
       if (!data) {
         // Primera vez: no existe el documento de config todavía.
         setStatus('st-danger', 'Falta config_centro');
@@ -401,12 +405,7 @@
         setBody(`<div class="icon-circle c-active">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.4"/><path d="M6 17v4h12v-4"/></svg>
           </div><div class="screen-title">Imprimiendo tu documento</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
-        // SOLO PARA TESTING: sin agente de impresión real todavía, simulamos que
-        // termina de imprimir a los 3 segundos. El día que exista el agente de la
-        // PC, es él quien va a escribir "listo" (o "error") en Firestore.
-        setTimeout(() => {
-          db.collection('sesiones').doc(sesionId).update({ estado: 'listo' });
-        }, 3000);
+        iniciarImpresionSiHaceFalta(sesionId);
         break;
       case 'listo':
         setStatus('st-ok', 'Listo');
@@ -446,6 +445,70 @@
         <div class="preview-placeholder">${label}</div>
         <div class="preview-name">${escapeHtml(trabajo && trabajo.nombre_archivo)}</div>
       </div>`;
+  }
+
+  // Dispara la impresión real del trabajo pagado (una sola vez por sesión) cuando corre
+  // dentro del Electron del agente de impresión. Si se abre en un browser normal (dev en
+  // Chrome sin Electron), window.agenteImpresion no existe y cae al setTimeout simulado de
+  // siempre, para no romper ese flujo de prueba.
+  function iniciarImpresionSiHaceFalta(sesionId){
+    if (sesionConImpresionIniciada === sesionId) return; // ya se disparó para esta sesión
+    sesionConImpresionIniciada = sesionId;
+
+    if (!window.agenteImpresion) {
+      // SOLO PARA TESTING sin el agente real (dev en Chrome, sin Electron): simulamos que
+      // termina de imprimir a los 3 segundos, como antes.
+      setTimeout(() => {
+        db.collection('sesiones').doc(sesionId).update({ estado: 'listo' });
+      }, 3000);
+      return;
+    }
+
+    if (desuscribirEventosImpresion) { desuscribirEventosImpresion(); desuscribirEventosImpresion = null; }
+    desuscribirEventosImpresion = window.agenteImpresion.onEventoImpresion((evento) => {
+      if (evento.sesionId !== sesionId) return; // eventos de otra sesión, ignorar
+      if (evento.tipo === 'print-job:success') {
+        db.collection('sesiones').doc(sesionId).update({ estado: 'listo' });
+        db.collection('trabajos').doc(sesionId).set({ estado: 'impreso' }, { merge: true });
+      } else if (evento.tipo === 'print-job:error') {
+        db.collection('sesiones').doc(sesionId).update({ estado: 'error' });
+        db.collection('trabajos').doc(sesionId).set(
+          { estado: 'error', error_tipo: evento.errorType, error_mensaje: evento.message },
+          { merge: true }
+        );
+      }
+      // 'print-job:sent' / 'print-job:printing' no cambian el estado de la sesión — la
+      // pantalla ya muestra "Imprimiendo tu documento" desde que entró a 'pagado'.
+    });
+
+    db.collection('trabajos').doc(sesionId).get().then((doc) => {
+      const trabajo = doc.data();
+      if (!trabajo) {
+        db.collection('sesiones').doc(sesionId).update({ estado: 'error' });
+        return;
+      }
+      const rangoCompleto = trabajo.rango_desde === 1 && trabajo.rango_hasta === trabajo.cantidad_paginas_total;
+      window.agenteImpresion.imprimirTrabajo({
+        sesionId,
+        nombreArchivo: trabajo.nombre_archivo,
+        tipoArchivo: trabajo.tipo_archivo,
+        archivoUrl: trabajo.archivo_original_url,
+        rangoCompleto,
+        copias: trabajo.copias,
+        faz: trabajo.faz,
+        nombreImpresora: configCentro ? configCentro.impresora_nombre : undefined,
+      }).then((resultado) => {
+        if (!resultado || !resultado.ok) {
+          // No llegó a arrancar (faltaban datos, no hay impresora, etc.) — no va a llegar
+          // ningún evento IPC después de esto, así que marcamos el error acá directamente.
+          db.collection('sesiones').doc(sesionId).update({ estado: 'error' });
+          db.collection('trabajos').doc(sesionId).set(
+            { estado: 'error', error_tipo: resultado ? resultado.errorType : 'desconocido', error_mensaje: resultado ? resultado.message : 'Sin respuesta del agente de impresión.' },
+            { merge: true }
+          );
+        }
+      });
+    });
   }
 
   function watchPago(sesionId){

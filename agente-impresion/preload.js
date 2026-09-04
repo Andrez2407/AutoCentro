@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('agenteImpresion', {
   //   duplex: 'simplex' | 'duplex' | 'duplexlong' | 'duplexshort'
   imprimir: (opciones) => ipcRenderer.invoke('print:iniciar', opciones),
 
+  // Igual que imprimir(), pero para un trabajo real del flujo de sesiones: descarga el
+  // archivo (ya como URL https resuelta desde Storage) y lo imprime. Ver las limitaciones
+  // (solo PDF completo, sin recorte de páginas) en el handler 'trabajo:imprimir' de main.js.
+  // datos: { sesionId, nombreArchivo, tipoArchivo, archivoUrl, rangoCompleto, copias, faz,
+  //          nombreImpresora? }
+  imprimirTrabajo: (datos) => ipcRenderer.invoke('trabajo:imprimir', datos),
+
   // --- Eventos que emite el main process (Main -> Renderer) ---
   // callback recibe (payload). Devuelve una función para des-suscribirse.
   onEventoImpresion: (callback) => {

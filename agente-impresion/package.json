@@ -1,11 +1,12 @@
 {
   "name": "agente-impresion-autocentro",
   "version": "0.1.0",
-  "description": "Agente de impresión Electron para AutoCentro (main process con acceso a SumatraPDF + spooler de Windows) + página de test aislada",
+  "description": "Agente de impresi\u00f3n Electron para AutoCentro (main process con acceso a SumatraPDF + spooler de Windows) + p\u00e1gina de test aislada",
   "main": "main.js",
   "private": true,
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "kiosco": "electron . --kiosco"
   },
   "author": "AutoCentro",
   "license": "UNLICENSED",

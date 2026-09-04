@@ -1,9 +1,15 @@
-# Agente de impresión (Electron) — etapa de test aislada
+# Agente de impresión (Electron)
 
-Esta carpeta es un proyecto Electron **separado** del sistema con Firebase (AutoCentro).
-Por ahora **no** habla con Firestore ni con el flujo de sesión/pago — el objetivo de esta
-etapa es dejar probado, de forma aislada, el módulo de impresión real (SumatraPDF + polling
-del spooler de Windows).
+Este proyecto Electron vive dentro de la carpeta de AutoCentro pero es un `package.json`
+aparte. Tiene dos modos:
+
+- **`npm start`** → carga `test_impresora.html`, la página de debug aislada (sin Firestore,
+  sin flujo de sesión/pago) — para probar el módulo de impresión en sí, a mano.
+- **`npm run kiosco`** → carga `../public/pc-app.html`, la pantalla real del centro, con la
+  impresión real ya conectada por IPC (ver "Integración con pc-app.html" más abajo).
+
+El módulo de impresión (`lib/impresion.js`, SumatraPDF + polling del spooler de Windows) es
+el mismo para los dos modos.
 
 ## Por qué Electron y no solo el browser
 
@@ -82,6 +88,37 @@ que si se agrega un tipo nuevo hay que hacerlo pensando en ambos lados.
    manualmente (imprimir pares, avisar que se dé vuelta el mazo, imprimir impares). Esto
    cambia el diseño si el dúplex de hardware no funciona bien con esa impresora — probarlo
    con el hardware físico, no alcanza con "Microsoft Print to PDF".
+
+## Integración con pc-app.html (`npm run kiosco`)
+
+`pc-app.html` (la pantalla del centro) corre como el renderer de esta misma app Electron en
+vez de en Chrome kiosco. Cuando una sesión pasa a `pagado`, si `window.agenteImpresion`
+existe (o sea, si está corriendo acá adentro y no en un browser normal), dispara la
+impresión real: lee `trabajos/{sesionId}` de Firestore, arma la orden y la manda por IPC a
+`main.js`, que descarga el PDF (`lib/descarga.js`, convierte el `gs://` de Storage a la URL
+pública de descarga) y lo imprime con el mismo `lib/impresion.js` de siempre. Al resolver,
+escribe `sesiones/{sesionId}.estado` en `listo` o `error` — reemplaza el `setTimeout` que
+simulaba esto antes.
+
+Si se abre `pc-app.html` en un browser común (Chrome, sin Electron) para desarrollo,
+`window.agenteImpresion` no existe y sigue usando el `setTimeout` simulado de siempre — no
+se rompió ese flujo de prueba.
+
+**Limitaciones a propósito en esta etapa** (el handler `trabajo:imprimir` en `main.js` es el
+punto exacto a tocar cuando se saquen):
+
+- Solo imprime si `trabajos.tipo_archivo === 'pdf'`. Todavía no existe la conversión con
+  LibreOffice para `.docx`/`.pptx` — esos trabajos fallan con un error explícito en vez de
+  intentar imprimir el archivo original sin convertir.
+- Solo imprime si el rango de páginas pedido es el documento completo
+  (`rango_desde === 1 && rango_hasta === cantidad_paginas_total`). Sin el recorte de
+  páginas, imprimir un rango parcial terminaría sacando el documento entero — se prefiere
+  fallar explícito antes que cobrar de menos e imprimir de más.
+- Nunca imprime a color (`color: false` fijo) — la tarifa actual (`tarifas.simple/doble` en
+  `config_centro`) tampoco contempla color todavía.
+- El nombre de la impresora sale de `config_centro.impresora_nombre` si está cargado; si no,
+  cae a buscar una que contenga "RICOH MP 501" y si tampoco existe, a la predeterminada de
+  Windows.
 
 ## Estructura
 

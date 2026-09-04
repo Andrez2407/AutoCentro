@@ -11,6 +11,10 @@ documentos para no tener que migrar cuando haya una segunda máquina.
   modo_automatico: true,
   pin_hash: "···",          // no implementado todavía — se edita a mano en la consola
   tarifas: { simple: 150, doble: 250 },
+  impresora_nombre: null,   // opcional. Nombre EXACTO de la impresora tal como lo ve
+                             // Windows (ver dropdown de test_impresora.html). Si no está
+                             // seteado, el agente de impresión cae a buscar una que
+                             // contenga "RICOH MP 501" y si no existe, a la predeterminada.
   updated_at: Timestamp
 }
 ```
@@ -50,7 +54,12 @@ Usa el mismo ID que la sesión (relación 1 a 1), para no tener que hacer una qu
   copias: 1,
   faz: "simple",              // simple | doble
   precio: 1500,               // calculado en el celular; se recalcula server-side más adelante
-  estado: "pendiente"         // pendiente | procesando | listo_para_pagar | pagado | impreso | error
+  estado: "pendiente",        // pendiente | procesando | listo_para_pagar | pagado | impreso | error
+  error_tipo: null,           // lo completa el agente de impresión si estado=error — uno de
+                               // sin_papel | atascada | offline | timeout |
+                               // driver_no_soporta_opcion | desconocido (ver TIPOS_ERROR en
+                               // agente-impresion/lib/impresion.js)
+  error_mensaje: null         // idem, texto libre para mostrar/loguear
 }
 ```
 
