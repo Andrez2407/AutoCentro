@@ -249,6 +249,27 @@ async function imprimir(opciones, onEvento) {
   const printSettings = construirPrintSettings(opciones);
   const nombreDocumento = path.basename(opciones.rutaPdf);
 
+  // Snapshot de los Ids que YA estaban en la cola antes de mandar este trabajo. Es
+  // importante porque un trabajo anterior con el mismo nombre de archivo puede seguir
+  // "atascado" en la cola (p.ej. uno viejo de una prueba sin papel que el usuario recién
+  // destrabó poniendo papel) y confundirse con el trabajo recién enviado si solo
+  // comparamos por nombre de documento — eso hacía que a veces se enganchara con el
+  // trabajo equivocado. Con el snapshot, identificamos el trabajo nuestro como el primero
+  // NUEVO (Id que no estaba antes) que matchee el nombre, y de ahí en más lo seguimos por
+  // Id, no por nombre.
+  let idsPrevios = new Set();
+  try {
+    const estadoInicial = await consultarSpooler(opciones.nombreImpresora);
+    const jobsPrevios = Array.isArray(estadoInicial?.jobs)
+      ? estadoInicial.jobs
+      : estadoInicial?.jobs
+      ? [estadoInicial.jobs]
+      : [];
+    idsPrevios = new Set(jobsPrevios.map((j) => j.Id));
+  } catch (err) {
+    // Si esto falla no es grave — seguimos igual, solo perdemos esta protección extra.
+  }
+
   try {
     await ejecutarSumatra({
       rutaPdf: opciones.rutaPdf,
@@ -268,6 +289,7 @@ async function imprimir(opciones, onEvento) {
   const inicio = Date.now();
   let vistoEnCola = false;
   let avisoImprimiendo = false;
+  let miJobId = null;
 
   while (true) {
     if (Date.now() - inicio > TIMEOUT_MS) {
@@ -295,7 +317,18 @@ async function imprimir(opciones, onEvento) {
 
     const printerStatus = estado?.printer?.PrinterStatus;
     const jobs = Array.isArray(estado?.jobs) ? estado.jobs : estado?.jobs ? [estado.jobs] : [];
-    const jobPropio = jobs.find((j) => (j.DocumentName || '').includes(nombreDocumento));
+
+    let jobPropio;
+    if (miJobId !== null) {
+      // Ya identificamos cuál trabajo es el nuestro: lo seguimos por Id, sin ambigüedad.
+      jobPropio = jobs.find((j) => j.Id === miJobId);
+    } else {
+      // Todavía no lo identificamos: buscamos uno NUEVO (Id que no estaba en el snapshot
+      // inicial) que matchee el nombre de archivo, e ignoramos cualquier trabajo viejo con
+      // el mismo nombre que ya estuviera en cola de antes.
+      jobPropio = jobs.find((j) => !idsPrevios.has(j.Id) && (j.DocumentName || '').includes(nombreDocumento));
+      if (jobPropio) miJobId = jobPropio.Id;
+    }
 
     const printerStatusNum = Number(printerStatus) || 0;
 
