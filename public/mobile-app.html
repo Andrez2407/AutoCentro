@@ -279,6 +279,14 @@
 
   <div class="content" id="form-column">
 
+    <div class="card" id="nombre-card">
+      <span class="step-label">Antes de empezar</span>
+      <h2>¿A nombre de quién es el pedido?</h2>
+      <div class="hint">Así el mostrador sabe de quién es cada impresión cuando esté lista.</div>
+      <input type="text" id="cliente-nombre" placeholder="Tu nombre" maxlength="40"
+             style="width:100%; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:9px; padding:11px 13px; font-size:14px; font-family:inherit;">
+    </div>
+
     <div class="card">
       <span class="step-label">Paso 1</span>
       <h2>Subí tu archivo</h2>
@@ -505,20 +513,30 @@
     });
   }
 
+  // Reclama la sesión de forma atómica: solo el PRIMER celular que llega (mientras la
+  // sesión sigue en 'idle') logra pasarla a 'esperando_archivo'. Si dos personas escanean
+  // el mismo QR casi al mismo tiempo (o una segunda persona escanea mientras la primera
+  // ya está eligiendo archivo/opciones — el QR físico en la pantalla del centro no cambia
+  // hasta que la sesión completa el ciclo), la transacción de Firestore serializa las dos
+  // lecturas+escrituras: la que llega segunda encuentra que estado YA NO es 'idle' y se le
+  // avisa en vez de dejarla pisar el pedido de la primera. Antes esto solo chequeaba que
+  // el documento existiera, sin importar si alguien ya lo había reclamado.
   function validarSesion(){
-    db.collection('sesiones').doc(sesionId).get().then((doc) => {
+    const ref = db.collection('sesiones').doc(sesionId);
+    db.runTransaction((tx) => tx.get(ref).then((doc) => {
       const data = doc.data();
       const vencida = data && data.expires_at && data.expires_at.toMillis() < Date.now();
       if (!data || data.token_qr !== sesionToken || data.estado === 'expirada' || vencida) {
-        mostrarErrorSesion('Esta sesión ya no es válida. Volvé a escanear el código de la pantalla del centro.');
-        return;
+        throw { codigo: 'invalida' };
       }
+      if (data.estado !== 'idle') {
+        throw { codigo: 'en_uso' };
+      }
+      tx.update(ref, { estado: 'esperando_archivo', updated_at: firebase.firestore.Timestamp.now() });
+      return data;
+    })).then((data) => {
       sessionValid = true;
       desbloquearFormulario();
-      // Apenas confirmamos que la sesión es válida (y no antes, ver el bug de
-      // carrera de más arriba), avisamos a la pantalla del centro que alguien
-      // ya está del otro lado — no hace falta esperar a que elija un archivo.
-      pushSesionEstado('esperando_archivo');
       iniciarCountdownReal(data.expires_at.toMillis());
       db.collection('config_centro').doc(CENTRO_ID).get().then((cfgDoc) => {
         const cfg = cfgDoc.data();
@@ -526,8 +544,12 @@
           mostrarErrorSesion('Por ahora hay atención manual — acercate al mostrador.');
         }
       });
-    }).catch(() => {
-      mostrarErrorSesion('No pudimos verificar la sesión. Volvé a escanear el código de la pantalla del centro.');
+    }).catch((err) => {
+      if (err && err.codigo === 'en_uso') {
+        mostrarErrorSesion('Esta sesión ya se está usando desde otro celular. Pedí un código nuevo en la pantalla del centro.');
+        return;
+      }
+      mostrarErrorSesion('Esta sesión ya no es válida. Volvé a escanear el código de la pantalla del centro.');
     });
   }
 
@@ -554,6 +576,10 @@
   }
 
   function trabajoRef(){ return db.collection('trabajos').doc(sesionId); }
+  function nombreClienteActual(){
+    const el = document.getElementById('cliente-nombre');
+    return el ? el.value.trim().slice(0, 40) : '';
+  }
   function sesionRef(){ return db.collection('sesiones').doc(sesionId); }
 
   function pushTrabajo(patch){
@@ -748,7 +774,7 @@
     updateSummary();
 
     pushSesionEstado('esperando_archivo');
-    pushTrabajo({ nombre_archivo: f.name, tipo_archivo: type, estado: 'procesando' });
+    pushTrabajo({ nombre_archivo: f.name, tipo_archivo: type, estado: 'procesando', nombre_cliente: nombreClienteActual() });
     subirArchivo(f).then(() => {
       if (!confirmado) pushSesionEstado('configurando');
     }).catch(() => {
@@ -1024,7 +1050,7 @@
     const code = hasSession ? sesionId.slice(0, 8).toUpperCase() : randomCode();
     $('ticket-code').textContent = code;
 
-    pushTrabajo({ estado: 'listo_para_pagar' });
+    pushTrabajo({ estado: 'listo_para_pagar', nombre_cliente: nombreClienteActual() });
     pushSesionEstado('pago_pendiente');
     if (isFirebaseConfigured && hasSession && sessionValid) {
       db.collection('pagos').doc(sesionId).set({

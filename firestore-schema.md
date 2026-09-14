@@ -45,6 +45,9 @@ Usa el mismo ID que la sesión (relación 1 a 1), para no tener que hacer una qu
   sesion_id: "...",
   centro_id: "principal",
   nombre_archivo: "apunte.pdf",
+  nombre_cliente: "",         // opcional, lo completa el celular (campo "¿A nombre de
+                               // quién?" al principio de mobile-app.html) — para que el
+                               // mostrador sepa de quién es cada trabajo
   tipo_archivo: "pdf",        // pdf | docx | pptx
   archivo_original_url: "gs://.../sesiones/{sesionId}/original.pdf",
   archivo_pdf_url: null,      // lo completa el agente de la PC tras convertir

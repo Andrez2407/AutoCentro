@@ -287,6 +287,18 @@
   let configCentro = null; // último doc de config_centro/{CENTRO_ID}, para leer impresora_nombre
   let sesionConImpresionIniciada = null; // evita re-disparar la impresión real en cada snapshot
   let desuscribirEventosImpresion = null;
+  let trabajoActual = null; // último doc de trabajos/{sesionId} — para mostrar nombre_cliente
+  let unsubscribeTrabajoActual = null;
+
+  // Actualiza SOLO el texto del nombre del cliente, sin re-renderizar toda la pantalla
+  // (evita disparar de nuevo efectos secundarios como volverAIdleEn() o el arranque de
+  // impresión si un snapshot de trabajos llega mientras ya estamos en 'pagado'/'listo').
+  function renderNombreClienteBadge(){
+    const el = document.getElementById('cliente-badge');
+    if (!el) return;
+    const nombre = trabajoActual && trabajoActual.nombre_cliente;
+    el.textContent = nombre ? ('A nombre de ' + nombre) : '';
+  }
 
   auth.signInAnonymously().then(() => {
     watchModoAutomatico();
@@ -360,6 +372,12 @@
 
   function escucharSesion(sesionId, token){
     clearTimeout(idleTimer);
+    trabajoActual = null;
+    if (unsubscribeTrabajoActual) { unsubscribeTrabajoActual(); unsubscribeTrabajoActual = null; }
+    unsubscribeTrabajoActual = db.collection('trabajos').doc(sesionId).onSnapshot((doc) => {
+      trabajoActual = doc.data() || null;
+      renderNombreClienteBadge();
+    });
     unsubscribeSesion = db.collection('sesiones').doc(sesionId).onSnapshot((doc) => {
       const data = doc.data();
       if (!data) return;
@@ -398,11 +416,13 @@
       }
       case 'esperando_archivo':
         setStatus('st-active', 'Sesión activa');
-        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div><div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div>`);
+        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div><div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
+        renderNombreClienteBadge();
         break;
       case 'configurando':
         setStatus('st-active', 'Procesando');
-        setBody(`<div class="spinner"></div><div class="screen-title">Preparando tu documento</div><div class="screen-sub">Convirtiendo el archivo y contando páginas…</div>`);
+        setBody(`<div class="spinner"></div><div class="screen-title">Preparando tu documento</div><div class="screen-sub">Convirtiendo el archivo y contando páginas…</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
+        renderNombreClienteBadge();
         break;
       case 'pago_pendiente':
         watchPago(sesionId);
@@ -411,17 +431,20 @@
         setStatus('st-active', 'Imprimiendo');
         setBody(`<div class="icon-circle c-active">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1.4"/><path d="M6 17v4h12v-4"/></svg>
-          </div><div class="screen-title">Imprimiendo tu documento</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
+          </div><div class="screen-title">Imprimiendo tu documento</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
+        renderNombreClienteBadge();
         iniciarImpresionSiHaceFalta(sesionId);
         break;
       case 'listo':
         setStatus('st-ok', 'Listo');
-        setBody(`<div class="icon-circle c-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg></div><div class="screen-title">Retirá tu impresión en el mostrador</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
+        setBody(`<div class="icon-circle c-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg></div><div class="screen-title">Retirá tu impresión en el mostrador</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
+        renderNombreClienteBadge();
         volverAIdleEn(sesionId, 8000);
         break;
       case 'error':
         setStatus('st-danger', 'Necesita atención');
-        setBody(`<div class="icon-circle c-danger">!</div><div class="screen-title">Hubo un problema al imprimir</div><div class="screen-sub">Tu pago ya fue registrado. Mostrá este código en el mostrador.</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div>`);
+        setBody(`<div class="icon-circle c-danger">!</div><div class="screen-title">Hubo un problema al imprimir</div><div class="screen-sub">Tu pago ya fue registrado. Mostrá este código en el mostrador.</div><div class="order-code">${sesionId.slice(0,8).toUpperCase()}</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
+        renderNombreClienteBadge();
         break;
       case 'expirada':
       default:
@@ -437,12 +460,18 @@
     }[c]));
   }
 
+  function nombreClienteHtml(trabajo){
+    const nombre = trabajo && trabajo.nombre_cliente;
+    return nombre ? `<div class="preview-name mono">A nombre de ${escapeHtml(nombre)}</div>` : '';
+  }
+
   function previewHtml(trabajo){
     if (trabajo && trabajo.preview_url) {
       return `
         <div class="preview-card">
           <img src="${trabajo.preview_url}" alt="Vista previa del archivo">
           <div class="preview-name">${escapeHtml(trabajo.nombre_archivo)}</div>
+          ${nombreClienteHtml(trabajo)}
         </div>`;
     }
     const tipo = trabajo ? trabajo.tipo_archivo : null;
@@ -451,6 +480,7 @@
       <div class="preview-card">
         <div class="preview-placeholder">${label}</div>
         <div class="preview-name">${escapeHtml(trabajo && trabajo.nombre_archivo)}</div>
+        ${nombreClienteHtml(trabajo)}
       </div>`;
   }
 
