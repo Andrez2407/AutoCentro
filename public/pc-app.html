@@ -257,6 +257,10 @@
   // que se setea llamando a CREAR_ORDEN_QR_URL antes de mostrar este QR.
   const QR_PAGO_ESTATICO = "00020101021143540016com.mercadolibre0130https://mpago.la/pos/1374588685011000711111115204970053030325802AR5909Test Test6004CABA63040F6F";
 
+  // Si nadie completa el pago en este tiempo (p.ej. alguien se arrepiente y se va), la
+  // sesión vuelve a expirar sola en vez de dejar el QR de cobro colgado en pantalla.
+  const PAGO_COOLDOWN_MS = 40000;
+
   const configured = FIREBASE_CONFIG.apiKey !== "TODO";
   document.getElementById('config-banner').hidden = configured;
   if (!configured) {
@@ -289,6 +293,9 @@
   let desuscribirEventosImpresion = null;
   let trabajoActual = null; // último doc de trabajos/{sesionId} — para mostrar nombre_cliente
   let unsubscribeTrabajoActual = null;
+  let pagoTimer = null; // cooldown de 'pago_pendiente': si nadie paga a tiempo, la sesión expira
+  let pagoCountdownInterval = null; // refresca el contador visible en pantalla cada 1s
+  let pagoTimerSesionId = null; // sesionId para el que está armado el cooldown actual (evita reiniciarlo en cada snapshot)
 
   // Actualiza SOLO el texto del nombre del cliente, sin re-renderizar toda la pantalla
   // (evita disparar de nuevo efectos secundarios como volverAIdleEn() o el arranque de
@@ -395,6 +402,18 @@
     // cartel de éxito con un salto directo a una sesión nueva. El caso 'idle' de abajo lo
     // vuelve a armar con el expires_at correcto si corresponde.
     clearTimeout(idleTimer);
+    // El cooldown de 'pago_pendiente' se arma UNA vez por sesión (ver watchPago) y no hay
+    // que reiniciarlo si este snapshot vuelve a llegar con el mismo estado (p.ej. cambió
+    // otro campo del doc) — si no, alguien que tarda en escanear nunca vería completarse la
+    // cuenta regresiva. Solo lo cancelamos si la sesión salió de 'pago_pendiente' o si es
+    // una sesión distinta a la que tiene el cooldown armado.
+    if (data.estado !== 'pago_pendiente' || pagoTimerSesionId !== sesionId) {
+      clearTimeout(pagoTimer);
+      pagoTimer = null;
+      clearInterval(pagoCountdownInterval);
+      pagoCountdownInterval = null;
+      if (data.estado !== 'pago_pendiente') pagoTimerSesionId = null;
+    }
     switch (data.estado) {
       case 'idle': {
         setStatus('st-neutral', 'En espera');
@@ -555,6 +574,24 @@
     let ordenCreada = false; // para no pedir la orden más de una vez por sesión
     let qrDibujado = false; // el QR es siempre el mismo, no hace falta redibujarlo
 
+    // Arma el cooldown de pago una sola vez por sesión (ver el guard en renderEstado, que
+    // evita volver a entrar acá si ya está armado para este mismo sesionId).
+    if (pagoTimerSesionId !== sesionId) {
+      pagoTimerSesionId = sesionId;
+      const vencePagoEn = Date.now() + PAGO_COOLDOWN_MS;
+      pagoTimer = setTimeout(() => {
+        db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
+      }, PAGO_COOLDOWN_MS);
+      pagoCountdownInterval = setInterval(() => {
+        const el = document.getElementById('pago-countdown');
+        if (!el) return; // ya no estamos en la pantalla de pago (setBody la reemplazó)
+        const segundos = Math.max(0, Math.ceil((vencePagoEn - Date.now()) / 1000));
+        el.textContent = segundos > 0
+          ? `Este código expira en ${segundos}s si no se completa el pago`
+          : 'Expirando…';
+      }, 500);
+    }
+
     function render(){
       if (!pago) return;
       const monto = pago.monto ? '$' + pago.monto.toLocaleString('es-AR') : '—';
@@ -570,6 +607,7 @@
             <div class="qr-wrap qr-wrap-sm" id="qr-pago"></div>
             <div class="big-amount" style="font-size:clamp(20px,3.4vw,34px);">${monto}</div>
             <div class="order-code">${codigo}</div>
+            <div class="screen-sub mono" id="pago-countdown" style="font-size:12px; margin-top:6px;"></div>
             ${avisoEspera}
           </div>
         </div>
