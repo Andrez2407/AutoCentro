@@ -310,6 +310,31 @@
   let esperandoTimer = null; // cooldown de 'esperando_archivo': si nadie elige un archivo a tiempo, la sesión expira
   let esperandoCountdownInterval = null;
   let esperandoTimerSesionId = null; // mismo patrón que pagoTimerSesionId: evita reiniciar el cooldown en cada snapshot
+  let esperandoExtendidoParaSesion = null; // evita volver a extender el cooldown más de una vez por sesión
+
+  // (Re)arma el cooldown de 'esperando_archivo' con el tiempo completo. Se llama al entrar
+  // por primera vez al estado, y una vez más si aparece un trabajo real mientras seguimos
+  // ahí (ver el listener de trabajos en escucharSesion) — así alguien que sí eligió un
+  // archivo pero tiene una subida lenta (wifi de la universidad) no se queda sin tiempo por
+  // el mismo cooldown pensado para detectar a alguien que nunca tocó nada.
+  function armarCooldownEsperandoArchivo(sesionId){
+    clearTimeout(esperandoTimer);
+    clearInterval(esperandoCountdownInterval);
+    esperandoTimerSesionId = sesionId;
+    const venceEsperaEn = Date.now() + ESPERANDO_ARCHIVO_COOLDOWN_MS;
+    esperandoTimer = setTimeout(() => {
+      db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
+    }, ESPERANDO_ARCHIVO_COOLDOWN_MS);
+    esperandoCountdownInterval = setInterval(() => {
+      const el = document.getElementById('espera-countdown');
+      if (!el) return; // ya no estamos en esta pantalla
+      const segundos = Math.max(0, Math.ceil((venceEsperaEn - Date.now()) / 1000));
+      const mensaje = trabajoActual
+        ? `Esta pantalla vuelve al QR en ${segundos}s si no se termina de subir el archivo`
+        : `Esta pantalla vuelve al QR en ${segundos}s si no elegís un archivo`;
+      el.textContent = segundos > 0 ? mensaje : 'Expirando…';
+    }, 500);
+  }
 
   // Actualiza SOLO el texto del nombre del cliente, sin re-renderizar toda la pantalla
   // (evita disparar de nuevo efectos secundarios como volverAIdleEn() o el arranque de
@@ -396,8 +421,18 @@
     trabajoActual = null;
     if (unsubscribeTrabajoActual) { unsubscribeTrabajoActual(); unsubscribeTrabajoActual = null; }
     unsubscribeTrabajoActual = db.collection('trabajos').doc(sesionId).onSnapshot((doc) => {
-      trabajoActual = doc.data() || null;
+      const nuevoTrabajo = doc.data() || null;
+      const apareceRecienAhora = !trabajoActual && nuevoTrabajo;
+      trabajoActual = nuevoTrabajo;
       renderNombreClienteBadge();
+      // El trabajo se crea en el mismo instante en que eligen un archivo en el celular
+      // (antes de que termine de subirse) — es la señal de que la persona sigue ahí, así
+      // que le damos un cooldown fresco y completo para terminar la subida en vez de
+      // dejar corriendo el que ya estaba pensado para "todavía no eligió nada".
+      if (apareceRecienAhora && estadoActual === 'esperando_archivo' && esperandoExtendidoParaSesion !== sesionId) {
+        esperandoExtendidoParaSesion = sesionId;
+        armarCooldownEsperandoArchivo(sesionId);
+      }
     });
     unsubscribeSesion = db.collection('sesiones').doc(sesionId).onSnapshot((doc) => {
       const data = doc.data();
@@ -436,7 +471,10 @@
       esperandoTimer = null;
       clearInterval(esperandoCountdownInterval);
       esperandoCountdownInterval = null;
-      if (data.estado !== 'esperando_archivo') esperandoTimerSesionId = null;
+      if (data.estado !== 'esperando_archivo') {
+        esperandoTimerSesionId = null;
+        esperandoExtendidoParaSesion = null;
+      }
     }
     switch (data.estado) {
       case 'idle': {
@@ -463,19 +501,13 @@
         // Si alguien escanea, valida y pone su nombre pero después abandona el celular sin
         // elegir un archivo, esta pantalla quedaba trabada para siempre — arrancamos el
         // cooldown una sola vez por sesión (el guard de arriba evita reiniciarlo si este
-        // mismo estado vuelve a llegar por otro campo del doc que cambió).
+        // mismo estado vuelve a llegar por otro campo del doc que cambió). Si más tarde
+        // eligen un archivo de verdad, el listener de trabajos (ver escucharSesion) lo
+        // vuelve a armar una vez con el tiempo completo, para no cortar una subida lenta
+        // a mitad de camino con el mismo cooldown pensado para "todavía no tocó nada".
         if (esperandoTimerSesionId !== sesionId) {
-          esperandoTimerSesionId = sesionId;
-          const venceEsperaEn = Date.now() + ESPERANDO_ARCHIVO_COOLDOWN_MS;
-          esperandoTimer = setTimeout(() => {
-            db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
-          }, ESPERANDO_ARCHIVO_COOLDOWN_MS);
-          esperandoCountdownInterval = setInterval(() => {
-            const el = document.getElementById('espera-countdown');
-            if (!el) return; // ya no estamos en esta pantalla
-            const segundos = Math.max(0, Math.ceil((venceEsperaEn - Date.now()) / 1000));
-            el.textContent = segundos > 0 ? `Esta pantalla vuelve al QR en ${segundos}s si no elegís un archivo` : 'Expirando…';
-          }, 500);
+          esperandoExtendidoParaSesion = null;
+          armarCooldownEsperandoArchivo(sesionId);
         }
         break;
       case 'configurando':
