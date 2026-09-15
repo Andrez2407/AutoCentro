@@ -347,6 +347,8 @@
   let unsubscribeTrabajoActual = null;
   let pagoTimer = null; // cooldown de 'pago_pendiente': si nadie paga a tiempo, la sesión expira
   let pagoTimerSesionId = null; // sesionId para el que está armado el cooldown actual (evita reiniciarlo en cada snapshot)
+  let unsubscribePago = null; // listener de pagos/{sesionId} armado por watchPago
+  let unsubscribeTrabajoPago = null; // listener de trabajos/{sesionId} armado por watchPago
   let esperandoTimer = null; // cooldown de 'esperando_archivo': si nadie elige un archivo a tiempo, la sesión expira
   let esperandoTimerSesionId = null; // mismo patrón que pagoTimerSesionId: evita reiniciar el cooldown en cada snapshot
   let esperandoExtendidoParaSesion = null; // evita volver a extender el cooldown más de una vez por sesión
@@ -488,7 +490,14 @@
     if (data.estado !== 'pago_pendiente' || pagoTimerSesionId !== sesionId) {
       clearTimeout(pagoTimer);
       pagoTimer = null;
-      if (data.estado !== 'pago_pendiente') { pagoTimerSesionId = null; detenerBarraCooldown(); }
+      if (data.estado !== 'pago_pendiente') {
+        pagoTimerSesionId = null;
+        detenerBarraCooldown();
+        // Soltar los listeners de watchPago acá es lo que evita que la pantalla del QR de
+        // pago reaparezca sola más tarde (ver el comentario grande en watchPago).
+        if (unsubscribePago) { unsubscribePago(); unsubscribePago = null; }
+        if (unsubscribeTrabajoPago) { unsubscribeTrabajoPago(); unsubscribeTrabajoPago = null; }
+      }
     }
     // Mismo patrón que el de arriba, para 'esperando_archivo': se arma una sola vez por
     // sesión (ver el case de abajo) y no se reinicia en cada snapshot mientras se sigue
@@ -665,21 +674,28 @@
   }
 
   function watchPago(sesionId){
+    // renderEstado llama watchPago(sesionId) en CADA snapshot de la sesión mientras el
+    // estado siga siendo 'pago_pendiente' (no solo la primera vez) — si no filtramos acá,
+    // cada llamada agregaba un PAR NUEVO de listeners onSnapshot sobre pagos/trabajos sin
+    // nunca soltar los anteriores. Esos listeners viejos seguían vivos para siempre (ni
+    // siquiera se soltaban al salir de pago_pendiente), así que cuando más tarde el agente
+    // de impresión escribía en trabajos/{sesionId} (éxito o error), el render() de ESE
+    // listener colgado volvía a pintar la pantalla del QR de pago por encima de lo que
+    // fuera que 'pagado'/'listo'/'error' acababan de mostrar — la pantalla "volvía sola" al
+    // QR de pago después de imprimir. Por eso: una sola vez por sesión.
+    if (pagoTimerSesionId === sesionId) return;
+    pagoTimerSesionId = sesionId;
+
     setStatus('st-warn', 'Pago pendiente');
     let pago = null;
     let trabajo = null;
     let ordenCreada = false; // para no pedir la orden más de una vez por sesión
     let qrDibujado = false; // el QR es siempre el mismo, no hace falta redibujarlo
 
-    // Arma el cooldown de pago una sola vez por sesión (ver el guard en renderEstado, que
-    // evita volver a entrar acá si ya está armado para este mismo sesionId).
-    if (pagoTimerSesionId !== sesionId) {
-      pagoTimerSesionId = sesionId;
-      pagoTimer = setTimeout(() => {
-        db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
-      }, PAGO_COOLDOWN_MS);
-      iniciarBarraCooldown(PAGO_COOLDOWN_MS);
-    }
+    pagoTimer = setTimeout(() => {
+      db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
+    }, PAGO_COOLDOWN_MS);
+    iniciarBarraCooldown(PAGO_COOLDOWN_MS);
 
     function render(){
       if (!pago) return;
@@ -736,8 +752,8 @@
       }
     }
 
-    db.collection('pagos').doc(sesionId).onSnapshot((doc) => { pago = doc.data(); render(); });
-    db.collection('trabajos').doc(sesionId).onSnapshot((doc) => { trabajo = doc.data(); render(); });
+    unsubscribePago = db.collection('pagos').doc(sesionId).onSnapshot((doc) => { pago = doc.data(); render(); });
+    unsubscribeTrabajoPago = db.collection('trabajos').doc(sesionId).onSnapshot((doc) => { trabajo = doc.data(); render(); });
   }
 
   function volverAIdleEn(sesionId, ms){
