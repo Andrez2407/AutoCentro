@@ -30,9 +30,17 @@ documentos para no tener que migrar cuando haya una segunda máquina.
   token_qr: "9f7c2a1d...",   // string aleatorio, se valida contra el que viene en la URL
   estado: "idle",            // idle | esperando_archivo | configurando | pago_pendiente
                              // | pagado | imprimiendo | listo | expirada | error
+  nombre_cliente: "",        // opcional. Lo escribe el celular apenas se valida la sesión,
+                             // ANTES de subir ningún archivo — el popup "¿A nombre de
+                             // quién es el pedido?" se muestra justo después de validar y,
+                             // al confirmarlo, este campo se actualiza acá (además de en
+                             // trabajos/{sesionId}, que lo completa más tarde). Así
+                             // pc-app.html puede mostrar el nombre en grande en pantalla
+                             // ni bien se ingresa, sin esperar a que exista el trabajo.
   created_at: Timestamp,
   updated_at: Timestamp,
-  expires_at: Timestamp      // idle: ahora + 3 min. pago_pendiente: ahora + 10 min.
+  expires_at: Timestamp      // idle: ahora + 3 min. pago_pendiente usa un cooldown de 40s
+                             // manejado en memoria por pc-app.html (no un campo acá).
 }
 ```
 

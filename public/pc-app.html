@@ -109,6 +109,10 @@
     font-family:"JetBrains Mono",monospace; font-weight:600; font-size:clamp(14px,2vw,22px);
     background:var(--screen-surface-2); padding:8px 20px; border-radius:10px; letter-spacing:.03em;
   }
+  .cliente-nombre-grande{
+    font-family:"Sora", sans-serif; font-weight:700; color:var(--accent);
+    font-size:clamp(24px,4.6vw,48px); margin-top:2px; text-wrap:balance;
+  }
 
   .pago-layout{
     display:flex; align-items:center; justify-content:center;
@@ -435,13 +439,11 @@
       }
       case 'esperando_archivo':
         setStatus('st-active', 'Sesión activa');
-        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div><div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
-        renderNombreClienteBadge();
+        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div>${data.nombre_cliente ? `<div class="cliente-nombre-grande">${escapeHtml(data.nombre_cliente)}</div>` : ''}<div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div>`);
         break;
       case 'configurando':
         setStatus('st-active', 'Procesando');
-        setBody(`<div class="spinner"></div><div class="screen-title">Preparando tu documento</div><div class="screen-sub">Convirtiendo el archivo y contando páginas…</div><div class="screen-sub mono" id="cliente-badge" style="margin-top:8px;"></div>`);
-        renderNombreClienteBadge();
+        setBody(`<div class="spinner"></div><div class="screen-title">Preparando tu documento</div>${data.nombre_cliente ? `<div class="cliente-nombre-grande">${escapeHtml(data.nombre_cliente)}</div>` : ''}<div class="screen-sub">Convirtiendo el archivo y contando páginas…</div>`);
         break;
       case 'pago_pendiente':
         watchPago(sesionId);

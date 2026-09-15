@@ -236,6 +236,22 @@
   }
   .btn-secondary:hover{background:var(--surface-2);}
 
+  .nombre-overlay{
+    position:fixed; inset:0; background:rgba(10,14,20,.55);
+    display:flex; align-items:center; justify-content:center; z-index:30;
+    padding:20px;
+  }
+  .nombre-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:22px 20px; width:100%; max-width:360px; text-align:left; box-shadow:var(--shadow);
+  }
+  .nombre-card h2{margin:2px 0 6px; font-size:17px;}
+  .nombre-card .hint{margin-bottom:14px;}
+  .nombre-card input{
+    width:100%; border:1px solid var(--border); background:var(--surface-2);
+    color:var(--text); border-radius:9px; padding:12px 13px; font-size:15px; font-family:inherit;
+  }
+
   .note{font-size:11.5px; color:var(--text-muted); margin-top:14px; line-height:1.5; padding-top:14px; border-top:1px dashed var(--border);}
   .note strong{color:var(--text);}
 
@@ -278,14 +294,6 @@
   </header>
 
   <div class="content" id="form-column">
-
-    <div class="card" id="nombre-card">
-      <span class="step-label">Antes de empezar</span>
-      <h2>¿A nombre de quién es el pedido?</h2>
-      <div class="hint">Así el mostrador sabe de quién es cada impresión cuando esté lista.</div>
-      <input type="text" id="cliente-nombre" placeholder="Tu nombre" maxlength="40"
-             style="width:100%; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:9px; padding:11px 13px; font-size:14px; font-family:inherit;">
-    </div>
 
     <div class="card">
       <span class="step-label">Paso 1</span>
@@ -436,6 +444,16 @@
   </div>
 </div>
 
+<div class="nombre-overlay" id="nombre-overlay" hidden>
+  <div class="nombre-card">
+    <span class="step-label">Antes de empezar</span>
+    <h2>¿A nombre de quién es el pedido?</h2>
+    <div class="hint">Así el mostrador sabe de quién es cada impresión cuando esté lista.</div>
+    <input type="text" id="cliente-nombre" placeholder="Tu nombre" maxlength="40" autocomplete="off">
+    <button class="btn-primary" id="btn-nombre-continuar" type="button" disabled>Continuar</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-storage-compat.js"></script>
@@ -494,8 +512,12 @@
     fc.style.pointerEvents = 'none';
   }
 
-  function desbloquearFormulario(){
+  function mostrarBarraLista(){
     document.querySelector('.session-bar').innerHTML = SESSION_BAR_HTML_LISTO;
+  }
+
+  function desbloquearFormulario(){
+    mostrarBarraLista();
     const fc = document.getElementById('form-column');
     fc.style.opacity = '';
     fc.style.pointerEvents = '';
@@ -536,7 +558,8 @@
       return data;
     })).then((data) => {
       sessionValid = true;
-      desbloquearFormulario();
+      mostrarBarraLista();
+      mostrarPopupNombre();
       iniciarCountdownReal(data.expires_at.toMillis());
       db.collection('config_centro').doc(CENTRO_ID).get().then((cfgDoc) => {
         const cfg = cfgDoc.data();
@@ -666,6 +689,40 @@
 
   const formColumn = $('form-column');
   const ticketCard = $('ticket-card');
+
+  // ---- Popup del nombre: aparece recién cuando la sesión terminó de validarse (ver
+  // validarSesion), antes reemplazaba un campo fijo arriba del formulario que quedaba raro
+  // mientras todavía no se sabía si la sesión era válida. El formulario sigue bloqueado
+  // (bloquearFormularioMientrasValida) hasta que se confirma el nombre acá.
+  const nombreOverlay = $('nombre-overlay');
+  const nombreInput = $('cliente-nombre');
+  const btnNombreContinuar = $('btn-nombre-continuar');
+
+  function mostrarPopupNombre(){
+    nombreOverlay.hidden = false;
+    setTimeout(() => nombreInput.focus(), 50);
+  }
+
+  // El input #cliente-nombre sigue existiendo en el DOM (dentro del popup, solo oculto)
+  // después de confirmar, así que nombreClienteActual() más abajo lo sigue leyendo bien
+  // cuando se arman los pushTrabajo() posteriores — no hace falta guardar el valor aparte.
+  function confirmarNombre(){
+    const nombre = nombreInput.value.trim().slice(0, 40);
+    if (!nombre) return;
+    nombreOverlay.hidden = true;
+    if (db && hasSession && sessionValid) {
+      db.collection('sesiones').doc(sesionId).update({ nombre_cliente: nombre });
+    }
+    desbloquearFormulario();
+  }
+
+  nombreInput.addEventListener('input', () => {
+    btnNombreContinuar.disabled = !nombreInput.value.trim();
+  });
+  nombreInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !btnNombreContinuar.disabled) confirmarNombre();
+  });
+  btnNombreContinuar.addEventListener('click', confirmarNombre);
 
   function fmtMoney(n){ return '$' + n.toLocaleString('es-AR'); }
   function extOf(fileNameStr){
