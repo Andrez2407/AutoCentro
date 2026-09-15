@@ -79,6 +79,20 @@
     gap:16px;
   }
 
+  /* Barra de cooldown: pegada abajo de toda la pantalla (no adentro de screen-body, para
+     que sobreviva a los setBody() que reescriben el contenido en cada render). Arranca
+     llena y se va achicando de derecha a izquierda con una transición CSS lineal — más
+     liviano que un setInterval actualizando texto cada 500ms, y de un vistazo se entiende
+     cuánto tiempo queda sin tener que leer un número. */
+  .cooldown-bar{
+    position:fixed; left:0; right:0; bottom:0; height:6px;
+    background:rgba(255,255,255,.06); z-index:15;
+  }
+  .cooldown-bar-fill{
+    height:100%; width:100%; transform-origin:left;
+    background:linear-gradient(90deg, var(--accent), var(--primary));
+  }
+
   .qr-wrap{
     background:#fff; border-radius:16px; padding:22px;
     display:flex; align-items:center; justify-content:center;
@@ -206,6 +220,10 @@
   </div>
 </div>
 
+<div class="cooldown-bar" id="cooldown-bar" hidden>
+  <div class="cooldown-bar-fill" id="cooldown-bar-fill"></div>
+</div>
+
 <div class="pin-overlay" id="pin-overlay" hidden>
   <div class="pin-card">
     <div class="pin-title">Ingresá el PIN para cambiar el modo</div>
@@ -295,6 +313,29 @@
   }
   function setBody(html){ screenBody.innerHTML = html; }
 
+  // Barra de cooldown pegada abajo de toda la pantalla — reemplaza al contador de
+  // segundos en texto. Un solo elemento compartido por los dos cooldowns (esperando_archivo
+  // y pago_pendiente) porque son estados mutuamente excluyentes, nunca están armados los
+  // dos a la vez. Arranca llena (100%) y una transición CSS lineal la va achicando sola
+  // hasta 0 en `ms` — no hace falta ningún setInterval tocando el DOM cada tanto.
+  const cooldownBar = $('cooldown-bar');
+  const cooldownBarFill = $('cooldown-bar-fill');
+
+  function iniciarBarraCooldown(ms){
+    cooldownBar.hidden = false;
+    cooldownBarFill.style.transition = 'none';
+    cooldownBarFill.style.width = '100%';
+    void cooldownBarFill.offsetWidth; // fuerza reflow para que el próximo cambio sí anime
+    cooldownBarFill.style.transition = `width ${ms}ms linear`;
+    cooldownBarFill.style.width = '0%';
+  }
+
+  function detenerBarraCooldown(){
+    cooldownBar.hidden = true;
+    cooldownBarFill.style.transition = 'none';
+    cooldownBarFill.style.width = '100%';
+  }
+
   let unsubscribeSesion = null;
   let idleTimer = null;
   let sesionIdActual = null;
@@ -305,10 +346,8 @@
   let trabajoActual = null; // último doc de trabajos/{sesionId} — para mostrar nombre_cliente
   let unsubscribeTrabajoActual = null;
   let pagoTimer = null; // cooldown de 'pago_pendiente': si nadie paga a tiempo, la sesión expira
-  let pagoCountdownInterval = null; // refresca el contador visible en pantalla cada 1s
   let pagoTimerSesionId = null; // sesionId para el que está armado el cooldown actual (evita reiniciarlo en cada snapshot)
   let esperandoTimer = null; // cooldown de 'esperando_archivo': si nadie elige un archivo a tiempo, la sesión expira
-  let esperandoCountdownInterval = null;
   let esperandoTimerSesionId = null; // mismo patrón que pagoTimerSesionId: evita reiniciar el cooldown en cada snapshot
   let esperandoExtendidoParaSesion = null; // evita volver a extender el cooldown más de una vez por sesión
 
@@ -319,21 +358,11 @@
   // el mismo cooldown pensado para detectar a alguien que nunca tocó nada.
   function armarCooldownEsperandoArchivo(sesionId){
     clearTimeout(esperandoTimer);
-    clearInterval(esperandoCountdownInterval);
     esperandoTimerSesionId = sesionId;
-    const venceEsperaEn = Date.now() + ESPERANDO_ARCHIVO_COOLDOWN_MS;
     esperandoTimer = setTimeout(() => {
       db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
     }, ESPERANDO_ARCHIVO_COOLDOWN_MS);
-    esperandoCountdownInterval = setInterval(() => {
-      const el = document.getElementById('espera-countdown');
-      if (!el) return; // ya no estamos en esta pantalla
-      const segundos = Math.max(0, Math.ceil((venceEsperaEn - Date.now()) / 1000));
-      const mensaje = trabajoActual
-        ? `Esta pantalla vuelve al QR en ${segundos}s si no se termina de subir el archivo`
-        : `Esta pantalla vuelve al QR en ${segundos}s si no elegís un archivo`;
-      el.textContent = segundos > 0 ? mensaje : 'Expirando…';
-    }, 500);
+    iniciarBarraCooldown(ESPERANDO_ARCHIVO_COOLDOWN_MS);
   }
 
   // Actualiza SOLO el texto del nombre del cliente, sin re-renderizar toda la pantalla
@@ -459,9 +488,7 @@
     if (data.estado !== 'pago_pendiente' || pagoTimerSesionId !== sesionId) {
       clearTimeout(pagoTimer);
       pagoTimer = null;
-      clearInterval(pagoCountdownInterval);
-      pagoCountdownInterval = null;
-      if (data.estado !== 'pago_pendiente') pagoTimerSesionId = null;
+      if (data.estado !== 'pago_pendiente') { pagoTimerSesionId = null; detenerBarraCooldown(); }
     }
     // Mismo patrón que el de arriba, para 'esperando_archivo': se arma una sola vez por
     // sesión (ver el case de abajo) y no se reinicia en cada snapshot mientras se sigue
@@ -469,11 +496,10 @@
     if (data.estado !== 'esperando_archivo' || esperandoTimerSesionId !== sesionId) {
       clearTimeout(esperandoTimer);
       esperandoTimer = null;
-      clearInterval(esperandoCountdownInterval);
-      esperandoCountdownInterval = null;
       if (data.estado !== 'esperando_archivo') {
         esperandoTimerSesionId = null;
         esperandoExtendidoParaSesion = null;
+        detenerBarraCooldown();
       }
     }
     switch (data.estado) {
@@ -497,7 +523,7 @@
       }
       case 'esperando_archivo':
         setStatus('st-active', 'Sesión activa');
-        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div>${data.nombre_cliente ? `<div class="cliente-nombre-grande">${escapeHtml(data.nombre_cliente)}</div>` : ''}<div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div><div class="screen-sub mono" id="espera-countdown" style="font-size:12px; margin-top:8px;"></div>`);
+        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div>${data.nombre_cliente ? `<div class="cliente-nombre-grande">${escapeHtml(data.nombre_cliente)}</div>` : ''}<div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div>`);
         // Si alguien escanea, valida y pone su nombre pero después abandona el celular sin
         // elegir un archivo, esta pantalla quedaba trabada para siempre — arrancamos el
         // cooldown una sola vez por sesión (el guard de arriba evita reiniciarlo si este
@@ -649,18 +675,10 @@
     // evita volver a entrar acá si ya está armado para este mismo sesionId).
     if (pagoTimerSesionId !== sesionId) {
       pagoTimerSesionId = sesionId;
-      const vencePagoEn = Date.now() + PAGO_COOLDOWN_MS;
       pagoTimer = setTimeout(() => {
         db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
       }, PAGO_COOLDOWN_MS);
-      pagoCountdownInterval = setInterval(() => {
-        const el = document.getElementById('pago-countdown');
-        if (!el) return; // ya no estamos en la pantalla de pago (setBody la reemplazó)
-        const segundos = Math.max(0, Math.ceil((vencePagoEn - Date.now()) / 1000));
-        el.textContent = segundos > 0
-          ? `Este código expira en ${segundos}s si no se completa el pago`
-          : 'Expirando…';
-      }, 500);
+      iniciarBarraCooldown(PAGO_COOLDOWN_MS);
     }
 
     function render(){
@@ -678,7 +696,6 @@
             <div class="qr-wrap qr-wrap-sm" id="qr-pago"></div>
             <div class="big-amount" style="font-size:clamp(20px,3.4vw,34px);">${monto}</div>
             <div class="order-code">${codigo}</div>
-            <div class="screen-sub mono" id="pago-countdown" style="font-size:12px; margin-top:6px;"></div>
             ${avisoEspera}
           </div>
         </div>
