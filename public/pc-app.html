@@ -263,7 +263,14 @@
 
   // Si nadie completa el pago en este tiempo (p.ej. alguien se arrepiente y se va), la
   // sesión vuelve a expirar sola en vez de dejar el QR de cobro colgado en pantalla.
-  const PAGO_COOLDOWN_MS = 40000;
+  const PAGO_COOLDOWN_MS = 120000;
+
+  // Si alguien escanea el QR, valida la sesión y pone su nombre pero después abandona el
+  // celular antes de elegir un archivo, la pantalla se quedaba trabada en "Continuá desde
+  // tu celular" para siempre (no había ningún timer acá, a diferencia de 'idle'). Mismo
+  // mecanismo que PAGO_COOLDOWN_MS: si pasa este tiempo sin que se elija un archivo
+  // (esperando_archivo -> configurando), la sesión expira sola.
+  const ESPERANDO_ARCHIVO_COOLDOWN_MS = 90000;
 
   const configured = FIREBASE_CONFIG.apiKey !== "TODO";
   document.getElementById('config-banner').hidden = configured;
@@ -300,6 +307,9 @@
   let pagoTimer = null; // cooldown de 'pago_pendiente': si nadie paga a tiempo, la sesión expira
   let pagoCountdownInterval = null; // refresca el contador visible en pantalla cada 1s
   let pagoTimerSesionId = null; // sesionId para el que está armado el cooldown actual (evita reiniciarlo en cada snapshot)
+  let esperandoTimer = null; // cooldown de 'esperando_archivo': si nadie elige un archivo a tiempo, la sesión expira
+  let esperandoCountdownInterval = null;
+  let esperandoTimerSesionId = null; // mismo patrón que pagoTimerSesionId: evita reiniciar el cooldown en cada snapshot
 
   // Actualiza SOLO el texto del nombre del cliente, sin re-renderizar toda la pantalla
   // (evita disparar de nuevo efectos secundarios como volverAIdleEn() o el arranque de
@@ -418,6 +428,16 @@
       pagoCountdownInterval = null;
       if (data.estado !== 'pago_pendiente') pagoTimerSesionId = null;
     }
+    // Mismo patrón que el de arriba, para 'esperando_archivo': se arma una sola vez por
+    // sesión (ver el case de abajo) y no se reinicia en cada snapshot mientras se sigue
+    // esperando el archivo.
+    if (data.estado !== 'esperando_archivo' || esperandoTimerSesionId !== sesionId) {
+      clearTimeout(esperandoTimer);
+      esperandoTimer = null;
+      clearInterval(esperandoCountdownInterval);
+      esperandoCountdownInterval = null;
+      if (data.estado !== 'esperando_archivo') esperandoTimerSesionId = null;
+    }
     switch (data.estado) {
       case 'idle': {
         setStatus('st-neutral', 'En espera');
@@ -439,7 +459,24 @@
       }
       case 'esperando_archivo':
         setStatus('st-active', 'Sesión activa');
-        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div>${data.nombre_cliente ? `<div class="cliente-nombre-grande">${escapeHtml(data.nombre_cliente)}</div>` : ''}<div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div>`);
+        setBody(`<div class="spinner"></div><div class="screen-title">Continuá desde tu celular</div>${data.nombre_cliente ? `<div class="cliente-nombre-grande">${escapeHtml(data.nombre_cliente)}</div>` : ''}<div class="screen-sub">Subí tu archivo y elegí copias, faz y páginas.</div><div class="screen-sub mono" id="espera-countdown" style="font-size:12px; margin-top:8px;"></div>`);
+        // Si alguien escanea, valida y pone su nombre pero después abandona el celular sin
+        // elegir un archivo, esta pantalla quedaba trabada para siempre — arrancamos el
+        // cooldown una sola vez por sesión (el guard de arriba evita reiniciarlo si este
+        // mismo estado vuelve a llegar por otro campo del doc que cambió).
+        if (esperandoTimerSesionId !== sesionId) {
+          esperandoTimerSesionId = sesionId;
+          const venceEsperaEn = Date.now() + ESPERANDO_ARCHIVO_COOLDOWN_MS;
+          esperandoTimer = setTimeout(() => {
+            db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
+          }, ESPERANDO_ARCHIVO_COOLDOWN_MS);
+          esperandoCountdownInterval = setInterval(() => {
+            const el = document.getElementById('espera-countdown');
+            if (!el) return; // ya no estamos en esta pantalla
+            const segundos = Math.max(0, Math.ceil((venceEsperaEn - Date.now()) / 1000));
+            el.textContent = segundos > 0 ? `Esta pantalla vuelve al QR en ${segundos}s si no elegís un archivo` : 'Expirando…';
+          }, 500);
+        }
         break;
       case 'configurando':
         setStatus('st-active', 'Procesando');

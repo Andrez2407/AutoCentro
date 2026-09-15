@@ -39,8 +39,11 @@ documentos para no tener que migrar cuando haya una segunda máquina.
                              // ni bien se ingresa, sin esperar a que exista el trabajo.
   created_at: Timestamp,
   updated_at: Timestamp,
-  expires_at: Timestamp      // idle: ahora + 3 min. pago_pendiente usa un cooldown de 40s
-                             // manejado en memoria por pc-app.html (no un campo acá).
+  expires_at: Timestamp      // idle: ahora + 3 min. esperando_archivo (90s) y pago_pendiente
+                             // (120s) usan cooldowns en memoria manejados por pc-app.html
+                             // (ESPERANDO_ARCHIVO_COOLDOWN_MS / PAGO_COOLDOWN_MS), no un
+                             // campo acá — mismo patrón que idle pero sin persistir el
+                             // vencimiento en el doc.
 }
 ```
 
