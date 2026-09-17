@@ -45,4 +45,15 @@ contextBridge.exposeInMainWorld('agenteImpresion', {
       listeners.forEach(({ canal, listener }) => ipcRenderer.removeListener(canal, listener));
     };
   },
+
+  // Estado de la impresora consultado por SNMP EN SEGUNDO PLANO (no depende de que haya un
+  // trabajo imprimiéndose — ver monitorearImpresoraEnSegundoPlano() en main.js). callback
+  // recibe { errorType, banderas }, con errorType en null cuando no hay ningún problema
+  // (para que la pantalla oculte el aviso). Solo llega algo acá si IMPRESORA_IP está
+  // configurada y la impresora responde por SNMP — si no, simplemente no se emite nada.
+  onEstadoImpresora: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('impresora:estado', listener);
+    return () => ipcRenderer.removeListener('impresora:estado', listener);
+  },
 });

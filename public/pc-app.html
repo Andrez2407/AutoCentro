@@ -195,12 +195,19 @@
     background:#b3261e; color:#fff; text-align:center;
     font-size:13px; padding:8px; z-index:30;
   }
+  .impresora-banner{
+    position:fixed; top:0; left:0; right:0;
+    background:#b3261e; color:#fff; text-align:center;
+    font-size:14px; font-weight:600; padding:10px; z-index:25;
+  }
   [hidden]{display:none !important;}
 </style>
 
 <div id="config-banner" class="config-banner" hidden>
   Falta configurar Firebase — completá <span class="mono">FIREBASE_CONFIG</span> al final del archivo.
 </div>
+
+<div id="impresora-banner" class="impresora-banner" hidden></div>
 
 <div class="kiosk">
   <div class="status-bar">
@@ -334,6 +341,26 @@
     cooldownBar.hidden = true;
     cooldownBarFill.style.transition = 'none';
     cooldownBarFill.style.width = '100%';
+  }
+
+  // Aviso persistente de estado de la impresora — independiente de cualquier sesión, se
+  // actualiza con lo que mande el agente de impresión por SNMP en segundo plano (ver
+  // monitorearImpresoraEnSegundoPlano() en agente-impresion/main.js). Si el agente no está
+  // presente (dev en un browser normal) o no hay IMPRESORA_IP configurada, esto simplemente
+  // nunca recibe nada y el aviso queda oculto.
+  const impresoraBanner = $('impresora-banner');
+  const MENSAJES_ERROR_IMPRESORA = {
+    sin_papel: 'La impresora se quedó sin papel — avisá en el mostrador.',
+    atascada: 'La impresora tiene un papel atascado (o una tapa abierta) — avisá en el mostrador.',
+    offline: 'La impresora está fuera de línea — avisá en el mostrador.',
+  };
+  function actualizarBannerImpresora(payload){
+    const mensaje = payload && payload.errorType ? MENSAJES_ERROR_IMPRESORA[payload.errorType] : null;
+    impresoraBanner.hidden = !mensaje;
+    if (mensaje) impresoraBanner.textContent = mensaje;
+  }
+  if (window.agenteImpresion && window.agenteImpresion.onEstadoImpresora) {
+    window.agenteImpresion.onEstadoImpresora(actualizarBannerImpresora);
   }
 
   let unsubscribeSesion = null;

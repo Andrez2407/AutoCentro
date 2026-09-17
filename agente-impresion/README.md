@@ -71,6 +71,58 @@ física conectada.
 Estos son los mismos valores que va a usar el flujo real de sesiones cuando se integre, así
 que si se agrega un tipo nuevo hay que hacerlo pensando en ambos lados.
 
+## Detección de fallas por SNMP (además del spooler de Windows)
+
+**Por qué existe esto:** confirmado con pruebas reales con la Ricoh MP 501 que el spooler de
+Windows (`Get-Printer`/`Get-PrintJob`, lo único que usa `lib/impresion.js` originalmente)
+puede seguir reportando `PrinterStatus=0` ("todo normal") aunque la impresora esté
+físicamente sin papel, con la luz roja prendida y pitando — el driver instalado no le pasa
+ese estado al spooler, y esto pasa incluso con el "soporte bidireccional" del puerto
+habilitado en Windows. La impresora sí expone su estado real por **SNMP**, de forma estándar
+(no depende del driver ni de Windows), así que `lib/snmp-impresora.js` la consulta directo
+por red como señal extra.
+
+**Cómo activarlo:** seteá estas variables de entorno antes de arrancar la app (`npm run
+kiosco` o `npm start`) —si no están, todo sigue funcionando igual que antes, solo sin esta
+señal extra:
+
+- `IMPRESORA_IP` — la IP de la impresora en la red local (ej: `192.168.1.50`). Sin esto, no
+  se hace ninguna consulta SNMP. Se puede ver en el propio panel de la impresora (Configuración
+  de red / TCP-IP), en una página de configuración impresa desde el menú de la impresora, o en
+  Windows: Panel de control → Dispositivos e impresoras → Propiedades → pestaña Puertos →
+  "Configurar puerto" (ahí figura la IP del puerto TCP/IP).
+- `IMPRESORA_SNMP_COMMUNITY` — el community string de solo lectura (default: `public`, que es
+  el valor de fábrica de la gran mayoría de las impresoras — solo hace falta tocar esto si
+  alguien lo cambió a propósito).
+
+**Dónde se usa esta señal:**
+
+1. **Antes de mandar cada trabajo** (`imprimir()` en `lib/impresion.js`): si SNMP ya reporta
+   sin papel/atascada/offline, se falla al toque en vez de esperar hasta 75s a que el spooler
+   (que puede no enterarse nunca) lo confirme.
+2. **En cada vuelta del polling** mientras se espera el resultado de un trabajo: se consulta
+   junto con el spooler, y si cualquiera de las dos señales reporta un problema, se clasifica
+   como error — esto es lo que corrige el caso real donde el trabajo "salía de la cola sin
+   errores" según Windows pero la impresora seguía físicamente sin papel.
+3. **En segundo plano, todo el tiempo** (`monitorearImpresoraEnSegundoPlano()` en `main.js`,
+   solo en modo kiosco): cada 15s, independiente de que haya algo imprimiéndose. Si detecta un
+   problema, `pc-app.html` muestra un aviso fijo arriba de toda la pantalla (rojo, con el
+   mensaje correspondiente) hasta que se resuelva — así el problema se ve ANTES de que alguien
+   intente imprimir, no recién cuando falla un trabajo.
+
+**Limitaciones a tener en cuenta:**
+
+- Necesita que la impresora tenga SNMP habilitado (viene así de fábrica en casi todos los
+  casos) y sea alcanzable por UDP/161 desde esta PC — si el firewall de la red de la
+  universidad bloquea ese puerto entre la PC y la impresora, esto simplemente no da señal
+  (no rompe nada, solo no suma la protección extra).
+- Usa el OID estándar `hrPrinterDetectedErrorState` (Host Resources MIB, RFC 2790) con índice
+  de dispositivo `.1`, que es lo correcto para una impresora simple de un solo motor. Si en
+  algún momento se cambia de impresora por un equipo multifunción con varios "device index",
+  puede hacer falta ajustar el OID en `lib/snmp-impresora.js`.
+- Un fallo o timeout de SNMP nunca se trata como error de impresión — si no responde,
+  simplemente no aporta esta señal extra y todo sigue dependiendo del spooler como antes.
+
 ## Qué NO hace esta etapa (a propósito)
 
 - No integra con Firestore ni con el flujo de sesión del usuario.
@@ -125,11 +177,19 @@ punto exacto a tocar cuando se saquen):
 ```
 agente-impresion/
 ├── package.json
-├── main.js              # proceso principal: ventana + handlers IPC
+├── main.js              # proceso principal: ventana + handlers IPC + monitoreo SNMP de fondo
 ├── preload.js            # puente IPC (contextBridge) entre main y renderer
 ├── test_impresora.html   # página de test (selector de PDF, impresora, opciones, log)
 ├── lib/
-│   └── impresion.js      # el módulo de impresión en sí: SumatraPDF + polling + taxonomía
+│   ├── impresion.js      # el módulo de impresión en sí: SumatraPDF + polling + taxonomía
+│   ├── descarga.js        # baja el PDF de Storage antes de imprimirlo (flujo real)
+│   └── snmp-impresora.js  # consulta el estado real de la impresora por SNMP (ver arriba)
 └── bin/
     └── SumatraPDF.exe    # (no incluido — copiarlo acá o usar SUMATRA_PDF_PATH)
 ```
+
+Nota sobre `npm install`: como `net-snmp` ahora es una dependencia del proyecto (para la
+sección de SNMP de arriba), después de bajar los últimos cambios con `git pull` hace falta
+correr `npm install` de nuevo en `agente-impresion/` para que se instale — si ya lo tenías
+corriendo y solo hiciste `git pull`, `npm start`/`npm run kiosco` va a fallar con "Cannot find
+module 'net-snmp'" hasta que corras `npm install` una vez.

@@ -11,6 +11,7 @@
 const path = require('path');
 const fs = require('fs');
 const { spawn, exec } = require('child_process');
+const { consultarEstadoSnmp } = require('./snmp-impresora');
 
 // --- Configuración ---------------------------------------------------------
 
@@ -21,6 +22,14 @@ const { spawn, exec } = require('child_process');
 // Windows, para guardarlo en la config en vez de tener que elegirlo cada vez a mano.
 const SUMATRA_PATH =
   process.env.SUMATRA_PDF_PATH || path.join(__dirname, '..', 'bin', 'SumatraPDF.exe');
+
+// IP de la impresora en la red local, para consultar su estado real por SNMP (ver
+// lib/snmp-impresora.js) — confirmado con pruebas reales que el spooler de Windows
+// (Get-Printer/Get-PrintJob) puede reportar "todo normal" aunque la impresora esté
+// físicamente sin papel, así que esta es una segunda señal independiente. Si no está
+// configurada, simplemente no se hace esta consulta extra (no rompe nada).
+const IMPRESORA_IP = process.env.IMPRESORA_IP || null;
+const IMPRESORA_SNMP_COMMUNITY = process.env.IMPRESORA_SNMP_COMMUNITY || 'public';
 
 const POLL_INTERVAL_MS = 1500; // 1-2s pedido en el prompt
 const TIMEOUT_MS = 75 * 1000; // dentro del rango 60-90s pedido en el prompt
@@ -239,6 +248,39 @@ function clasificarError({ printerStatus, jobStatus }) {
 }
 
 /**
+ * Traduce las banderas de hrPrinterDetectedErrorState (SNMP) a la taxonomía fija de
+ * errores. Devuelve null si no hay ninguna bandera "bloqueante" prendida (lowToner,
+ * lowPaper solos, etc. no bloquean la impresión).
+ */
+function clasificarBanderasSnmp(banderas) {
+  if (!banderas) return null;
+  if (banderas.noPaper) return TIPOS_ERROR.SIN_PAPEL;
+  if (banderas.jammed) return TIPOS_ERROR.ATASCADA;
+  if (banderas.offline) return TIPOS_ERROR.OFFLINE;
+  // No hay un tipo específico para "tapa abierta" en la taxonomía fija — en la práctica,
+  // si la tapa está abierta es casi siempre porque alguien está destrabando un atasco.
+  if (banderas.doorOpen) return TIPOS_ERROR.ATASCADA;
+  return null;
+}
+
+/**
+ * Consulta el estado de la impresora por SNMP, si IMPRESORA_IP está configurada. Nunca
+ * lanza ni bloquea el flujo de impresión: si SNMP no está disponible, devuelve null (sin
+ * señal), nunca lo confunde con un error de impresión real.
+ */
+async function chequearProblemaSnmp() {
+  if (!IMPRESORA_IP) return null;
+  const resultado = await consultarEstadoSnmp(IMPRESORA_IP, { community: IMPRESORA_SNMP_COMMUNITY });
+  if (!resultado.ok) {
+    console.log('[debug] SNMP no disponible:', resultado.motivo);
+    return null;
+  }
+  console.log('[debug] banderas SNMP:', JSON.stringify(resultado.banderas));
+  const errorType = clasificarBanderasSnmp(resultado.banderas);
+  return errorType ? { errorType, banderas: resultado.banderas } : null;
+}
+
+/**
  * Flujo completo: ejecuta SumatraPDF y después hace polling al spooler hasta resolver
  * éxito / error / timeout. Reporta cada cambio de estado a través de onEvento.
  *
@@ -268,6 +310,19 @@ async function imprimir(opciones, onEvento) {
     idsPrevios = new Set(jobsPrevios.map((j) => j.Id));
   } catch (err) {
     // Si esto falla no es grave — seguimos igual, solo perdemos esta protección extra.
+  }
+
+  // Chequeo rápido por SNMP ANTES de mandar nada: si la impresora ya está avisando sin
+  // papel/atascada/offline, no tiene sentido esperar 75s a que el spooler de Windows (que
+  // en la práctica puede no enterarse nunca) lo confirme.
+  const problemaSnmpPrevio = await chequearProblemaSnmp();
+  if (problemaSnmpPrevio) {
+    onEvento({
+      tipo: 'print-job:error',
+      errorType: problemaSnmpPrevio.errorType,
+      message: `La impresora ya reporta un problema por SNMP antes de enviar el trabajo (${JSON.stringify(problemaSnmpPrevio.banderas)}).`,
+    });
+    return;
   }
 
   try {
@@ -318,6 +373,12 @@ async function imprimir(opciones, onEvento) {
     const printerStatus = estado?.printer?.PrinterStatus;
     const jobs = Array.isArray(estado?.jobs) ? estado.jobs : estado?.jobs ? [estado.jobs] : [];
 
+    // Segunda señal, independiente del spooler de Windows (ver el comentario grande en
+    // chequearProblemaSnmp): confirmado que el spooler puede reportar "todo normal" con la
+    // impresora físicamente sin papel, así que en cada vuelta del polling consultamos
+    // también por SNMP y la tratamos como una fuente de error más, no un reemplazo.
+    const problemaSnmp = await chequearProblemaSnmp();
+
     let jobPropio;
     if (miJobId !== null) {
       // Ya identificamos cuál trabajo es el nuestro: lo seguimos por Id, sin ambigüedad.
@@ -341,12 +402,16 @@ async function imprimir(opciones, onEvento) {
       }
 
       const jobStatusNum = Number(jobPropio.JobStatus) || 0;
-      if ((jobStatusNum & JOB_STATUS_PROBLEMA) || (printerStatusNum & PRINTER_STATUS_PROBLEMA)) {
-        const errorType = clasificarError({ printerStatus: printerStatusNum, jobStatus: jobStatusNum });
+      if ((jobStatusNum & JOB_STATUS_PROBLEMA) || (printerStatusNum & PRINTER_STATUS_PROBLEMA) || problemaSnmp) {
+        const errorType = problemaSnmp
+          ? problemaSnmp.errorType
+          : clasificarError({ printerStatus: printerStatusNum, jobStatus: jobStatusNum });
         onEvento({
           tipo: 'print-job:error',
           errorType,
-          message: `El spooler reporta un problema con el trabajo (JobStatus=${jobStatusNum}, PrinterStatus=${printerStatusNum}).`,
+          message: problemaSnmp
+            ? `La impresora reporta un problema por SNMP (${JSON.stringify(problemaSnmp.banderas)}).`
+            : `El spooler reporta un problema con el trabajo (JobStatus=${jobStatusNum}, PrinterStatus=${printerStatusNum}).`,
         });
         return;
       }
@@ -354,25 +419,31 @@ async function imprimir(opciones, onEvento) {
       // Estaba en la cola y ya no está. OJO: esto NO es éxito automático — algunos
       // drivers (confirmado con la Ricoh MP 501) sacan el trabajo de la cola aunque haya
       // fallado (p.ej. falta de papel), y el problema solo se ve en el PrinterStatus del
-      // último poll, no en el JobStatus. Por eso volvemos a chequear acá antes de avisar
-      // éxito.
-      if (printerStatusNum & PRINTER_STATUS_PROBLEMA) {
-        const errorType = clasificarError({ printerStatus: printerStatusNum, jobStatus: 0 });
+      // último poll (que a su vez puede seguir en 0 aunque falte papel — de ahí el chequeo
+      // por SNMP acá también). Por eso volvemos a chequear acá antes de avisar éxito.
+      if ((printerStatusNum & PRINTER_STATUS_PROBLEMA) || problemaSnmp) {
+        const errorType = problemaSnmp
+          ? problemaSnmp.errorType
+          : clasificarError({ printerStatus: printerStatusNum, jobStatus: 0 });
         onEvento({
           tipo: 'print-job:error',
           errorType,
-          message: `El trabajo salió de la cola pero la impresora reporta un problema (PrinterStatus=${printerStatusNum}).`,
+          message: problemaSnmp
+            ? `El trabajo salió de la cola pero la impresora reporta un problema por SNMP (${JSON.stringify(problemaSnmp.banderas)}).`
+            : `El trabajo salió de la cola pero la impresora reporta un problema (PrinterStatus=${printerStatusNum}).`,
         });
         return;
       }
       onEvento({ tipo: 'print-job:success', message: 'El trabajo salió de la cola sin errores reportados.' });
       return;
-    } else if (printerStatusNum & PRINTER_STATUS_PROBLEMA) {
-      // Nunca llegó a aparecer en la cola y la impresora ya reporta un problema.
+    } else if ((printerStatusNum & PRINTER_STATUS_PROBLEMA) || problemaSnmp) {
+      // Nunca llegó a aparecer en la cola y la impresora (o el SNMP) ya reporta un problema.
       onEvento({
         tipo: 'print-job:error',
-        errorType: clasificarError({ printerStatus: printerStatusNum, jobStatus: 0 }),
-        message: `La impresora reporta un problema antes de que el trabajo entre a la cola (PrinterStatus=${printerStatusNum}).`,
+        errorType: problemaSnmp ? problemaSnmp.errorType : clasificarError({ printerStatus: printerStatusNum, jobStatus: 0 }),
+        message: problemaSnmp
+          ? `La impresora reporta un problema por SNMP antes de que el trabajo entre a la cola (${JSON.stringify(problemaSnmp.banderas)}).`
+          : `La impresora reporta un problema antes de que el trabajo entre a la cola (PrinterStatus=${printerStatusNum}).`,
       });
       return;
     }
@@ -390,4 +461,6 @@ module.exports = {
   construirPrintSettings,
   imprimir,
   SUMATRA_PATH,
+  clasificarBanderasSnmp,
+  IMPRESORA_IP,
 };

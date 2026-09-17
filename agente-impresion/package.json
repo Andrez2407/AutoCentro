@@ -10,6 +10,9 @@
   },
   "author": "AutoCentro",
   "license": "UNLICENSED",
+  "dependencies": {
+    "net-snmp": "^3.29.1"
+  },
   "devDependencies": {
     "electron": "^31.0.0"
   }

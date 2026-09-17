@@ -11,10 +11,17 @@
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { imprimir, TIPOS_ERROR } = require('./lib/impresion');
+const { imprimir, TIPOS_ERROR, IMPRESORA_IP, clasificarBanderasSnmp } = require('./lib/impresion');
 const { descargarArchivo } = require('./lib/descarga');
+const { consultarEstadoSnmp } = require('./lib/snmp-impresora');
 
 const MODO_KIOSCO = process.argv.includes('--kiosco');
+
+// Cada cuánto se chequea el estado de la impresora por SNMP EN SEGUNDO PLANO, independiente
+// de si hay algo imprimiéndose — así la pantalla del centro puede avisar "sin papel" incluso
+// antes de que alguien intente imprimir (ver lib/snmp-impresora.js para el porqué: el
+// spooler de Windows solo no alcanza para esto). Solo corre si IMPRESORA_IP está configurada.
+const INTERVALO_MONITOREO_IMPRESORA_MS = 15000;
 
 // Nombre (parcial, sin distinguir mayúsculas) de la impresora del centro, para usar como
 // fallback cuando no llega un nombre explícito de impresora (p.ej. porque config_centro
@@ -64,8 +71,30 @@ async function resolverNombreImpresora(nombreSolicitado) {
   return impresoras[0] ? impresoras[0].name : null;
 }
 
+// Consulta el estado de la impresora por SNMP y se lo manda al renderer por IPC, para que
+// pc-app.html pueda mostrar un aviso persistente ("sin papel", "atascada", etc.) en
+// cualquier momento — no solo mientras se está imprimiendo un trabajo. Manda `null` cuando
+// no hay ningún problema (para que el renderer sepa que tiene que ocultar el aviso), y
+// simplemente no manda nada si SNMP no está configurado o no responde (no queremos que un
+// SNMP caído se interprete como "todo bien" ni como un error).
+function monitorearImpresoraEnSegundoPlano() {
+  if (!IMPRESORA_IP) return; // sin IP configurada, no hay nada que consultar acá
+
+  setInterval(async () => {
+    if (!ventanaPrincipal || ventanaPrincipal.isDestroyed()) return;
+    const resultado = await consultarEstadoSnmp(IMPRESORA_IP);
+    if (!resultado.ok) return; // sin señal esta vuelta — no tocamos el aviso actual
+    const errorType = clasificarBanderasSnmp(resultado.banderas);
+    ventanaPrincipal.webContents.send('impresora:estado', {
+      errorType, // string de TIPOS_ERROR, o null si no hay ningún problema bloqueante
+      banderas: resultado.banderas,
+    });
+  }, INTERVALO_MONITOREO_IMPRESORA_MS);
+}
+
 app.whenReady().then(() => {
   crearVentana();
+  monitorearImpresoraEnSegundoPlano();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) crearVentana();
