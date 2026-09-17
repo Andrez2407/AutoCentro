@@ -63,5 +63,15 @@ service cloud.firestore {
       // marcarlo "aprobado" — esa transición queda reservada para el webhook
       // de pago (Cloud Function con Admin SDK) el día que exista.
     }
+
+    match /registrosImpresion/{registroId} {
+      allow read: if true; // lo va a consumir el panel de admin (pendiente de construir)
+      allow create: if request.auth != null;
+      // Log de auditoría de intentos de impresión: se crea uno por intento (éxito o error)
+      // desde pc-app.html y nunca se modifica después. El campo "reembolsado" se piensa
+      // actualizar desde el panel de admin cuando exista — por ahora, igual que
+      // config_centro, esa edición queda para la consola de Firebase a mano.
+      allow update, delete: if false;
+    }
   }
 }

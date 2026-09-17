@@ -1,0 +1,402 @@
+<title>Historial de impresiones — AutoCentro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f4f7fb; --surface:#ffffff; --surface-2:#eaf1f9;
+    --text:#152233; --text-muted:#5c6c7e; --border:#d7e2ee;
+    --primary:#d9531e; --primary-dark:#a83d12; --accent:#f2994a; --accent-soft:#fde9d5;
+    --ok:#1f8a5f; --ok-soft:#dff3ea; --warn:#a66a00; --warn-soft:#faf0d7;
+    --danger:#b3261e; --danger-soft:#fbe2df;
+    --shadow: 0 1px 2px rgba(21,34,51,.05), 0 8px 24px -12px rgba(21,34,51,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1720; --surface:#16212c; --surface-2:#1c2b39;
+      --text:#e8eef4; --text-muted:#94a7ba; --border:#293c4d;
+      --primary:#f2984d; --primary-dark:#f7b787; --accent:#f5b06a; --accent-soft:#3a2712;
+      --ok:#4fbf8f; --ok-soft:#153327; --warn:#d9b04a; --warn-soft:#3a3118;
+      --danger:#e0776d; --danger-soft:#3a1f1d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1720; --surface:#16212c; --surface-2:#1c2b39;
+    --text:#e8eef4; --text-muted:#94a7ba; --border:#293c4d;
+    --primary:#f2984d; --primary-dark:#f7b787; --accent:#f5b06a; --accent-soft:#3a2712;
+    --ok:#4fbf8f; --ok-soft:#153327; --warn:#d9b04a; --warn-soft:#3a3118;
+    --danger:#e0776d; --danger-soft:#3a1f1d;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:"Public Sans", sans-serif; line-height:1.5;}
+  h1,h2{font-family:"Sora", sans-serif; margin:0;}
+  .mono{font-family:"JetBrains Mono", monospace;}
+
+  .shell{max-width:1180px; margin:0 auto; padding:28px 20px 60px;}
+
+  header{margin-bottom:20px; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;}
+  header h1{font-size:21px; font-weight:700;}
+  header p{font-size:13px; color:var(--text-muted); margin:6px 0 0;}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; box-shadow:var(--shadow);}
+  .card + .card{margin-top:16px;}
+
+  /* --- Filtros --- */
+  .filtros{display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;}
+  .field{min-width:150px;}
+  .field label{display:block; font-size:11.5px; color:var(--text-muted); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:.02em;}
+  .field input, .field select{
+    width:100%; border:1px solid var(--border); background:var(--surface); color:var(--text);
+    border-radius:9px; padding:9px 11px; font-size:13.5px; font-family:inherit;
+  }
+  .field.buscar{flex:1; min-width:200px;}
+  .presets{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{
+    border:1px solid var(--border); background:var(--surface-2); color:var(--text-muted);
+    border-radius:999px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .chip.active{background:var(--primary); border-color:var(--primary); color:#fff;}
+  .btn{
+    border:none; border-radius:9px; padding:10px 16px; font-size:13.5px; font-weight:600;
+    cursor:pointer; white-space:nowrap;
+  }
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-ghost{background:var(--surface-2); color:var(--text);}
+  .btn-ghost:hover{background:var(--border);}
+  .filtros-actions{display:flex; gap:8px; margin-left:auto;}
+
+  /* --- Stats --- */
+  .stats{display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:12px; margin-top:16px;}
+  .stat{background:var(--surface-2); border-radius:12px; padding:14px 16px;}
+  .stat .num{font-family:"Sora",sans-serif; font-size:22px; font-weight:700;}
+  .stat .lbl{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+  .stat.ok .num{color:var(--ok);}
+  .stat.danger .num{color:var(--danger);}
+
+  /* --- Tabla --- */
+  .tabla-wrap{overflow-x:auto; margin-top:4px;}
+  table{width:100%; border-collapse:collapse; font-size:13px; min-width:920px;}
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.02em;
+    color:var(--text-muted); font-weight:600; padding:0 12px 10px; border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{padding:11px 12px; border-bottom:1px solid var(--border); vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--surface-2);}
+  td.num, th.num{text-align:right;}
+  .cliente{font-weight:600;}
+  .archivo{color:var(--text-muted); font-size:12px;}
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px;
+    font-size:11.5px; font-weight:700;
+  }
+  .badge.exito{background:var(--ok-soft); color:var(--ok);}
+  .badge.error{background:var(--danger-soft); color:var(--danger);}
+  .badge.reembolsado{background:var(--warn-soft); color:var(--warn); margin-left:6px;}
+  .err-detalle{font-size:11.5px; color:var(--text-muted); margin-top:3px; max-width:220px;}
+  .estado-vacio, .estado-cargando, .estado-error{
+    text-align:center; padding:48px 20px; color:var(--text-muted); font-size:13.5px;
+  }
+  .estado-error{color:var(--danger);}
+  [hidden]{display:none !important;}
+  footer.nota{font-size:11.5px; color:var(--text-muted); margin-top:14px; text-align:right;}
+</style>
+
+<div class="shell">
+  <header>
+    <div>
+      <h1>Historial de impresiones</h1>
+      <p>Registro de <span class="mono">registrosImpresion</span> — un intento por fila, éxito o error.</p>
+    </div>
+    <div class="presets" id="config-banner" hidden>
+      <span class="chip" style="background:var(--danger-soft); color:var(--danger); border-color:var(--danger); cursor:default;">Falta completar FIREBASE_CONFIG en este archivo</span>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="filtros">
+      <div class="field">
+        <label for="f-desde">Desde</label>
+        <input type="date" id="f-desde">
+      </div>
+      <div class="field">
+        <label for="f-hasta">Hasta</label>
+        <input type="date" id="f-hasta">
+      </div>
+      <div class="field">
+        <label for="f-resultado">Resultado</label>
+        <select id="f-resultado">
+          <option value="">Todos</option>
+          <option value="exito">Éxito</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+      <div class="field buscar">
+        <label for="f-buscar">Buscar</label>
+        <input type="text" id="f-buscar" placeholder="Nombre del cliente o archivo…">
+      </div>
+      <div class="filtros-actions">
+        <button class="btn btn-ghost" id="btn-csv">Exportar CSV</button>
+        <button class="btn btn-primary" id="btn-refrescar">Actualizar</button>
+      </div>
+    </div>
+    <div class="presets" style="margin-top:12px;">
+      <button class="chip" data-preset="hoy">Hoy</button>
+      <button class="chip" data-preset="7">Últimos 7 días</button>
+      <button class="chip active" data-preset="30">Últimos 30 días</button>
+      <button class="chip" data-preset="todo">Todo</button>
+    </div>
+
+    <div class="stats" id="stats" hidden>
+      <div class="stat"><div class="num" id="s-total">—</div><div class="lbl">Intentos</div></div>
+      <div class="stat ok"><div class="num" id="s-exitos">—</div><div class="lbl">Éxitos</div></div>
+      <div class="stat danger"><div class="num" id="s-errores">—</div><div class="lbl">Errores</div></div>
+      <div class="stat"><div class="num" id="s-tasa">—</div><div class="lbl">Tasa de éxito</div></div>
+      <div class="stat"><div class="num" id="s-importe">—</div><div class="lbl">Importe cobrado</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="estado-cargando" id="estado-cargando">Cargando…</div>
+    <div class="estado-error" id="estado-error" hidden></div>
+    <div class="estado-vacio" id="estado-vacio" hidden>No hay registros para este filtro.</div>
+
+    <div class="tabla-wrap" id="tabla-wrap" hidden>
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha y hora</th>
+            <th>Cliente</th>
+            <th>Archivo</th>
+            <th class="num">Páginas</th>
+            <th class="num">Copias</th>
+            <th class="num">Importe</th>
+            <th>Resultado</th>
+            <th>Impresora</th>
+            <th class="num">Duración</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <footer class="nota" id="nota-limite" hidden></footer>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.14.1/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // Mismo proyecto que pc-app.html / mobile-app.html — la colección registrosImpresion tiene
+  // `allow read: if true` en firestore.rules, así que esta página no necesita autenticarse
+  // para leer (a diferencia de pc-app.html, que sí escribe en sesiones/trabajos/pagos).
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCw26YY9Y1HYbqIzw427CHaKAajno0xWk8",
+    authDomain: "autocentro-14a94.firebaseapp.com",
+    projectId: "autocentro-14a94",
+    storageBucket: "autocentro-14a94.firebasestorage.app",
+    messagingSenderId: "476529422320",
+    appId: "1:476529422320:web:3eccc3259b6dddd0513735"
+  };
+
+  const LIMITE_FILAS = 500; // tope duro por consulta, para no traer la colección entera si crece
+
+  const $ = (id) => document.getElementById(id);
+  const fDesde = $('f-desde'), fHasta = $('f-hasta'), fResultado = $('f-resultado'), fBuscar = $('f-buscar');
+  const estadoCargando = $('estado-cargando'), estadoError = $('estado-error'), estadoVacio = $('estado-vacio');
+  const tablaWrap = $('tabla-wrap'), tbody = $('tbody'), statsEl = $('stats'), notaLimite = $('nota-limite');
+
+  const configured = FIREBASE_CONFIG.apiKey !== "TODO";
+  $('config-banner').hidden = configured;
+  if (!configured) {
+    estadoCargando.hidden = true;
+    estadoError.hidden = false;
+    estadoError.textContent = 'Completá FIREBASE_CONFIG en este archivo para poder consultar el historial.';
+    return;
+  }
+
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.firestore();
+
+  let filasCrudas = []; // último resultado de Firestore para el rango de fechas activo, sin filtrar por texto/resultado
+
+  function fmtFecha(ts){
+    if (!ts || !ts.toDate) return '—';
+    const d = ts.toDate();
+    return d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+  }
+  function fmtImporte(n){
+    if (typeof n !== 'number') return '—';
+    return '$' + n.toLocaleString('es-AR');
+  }
+  function fmtDuracion(ms){
+    if (typeof ms !== 'number') return '—';
+    return (ms / 1000).toFixed(1) + 's';
+  }
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function toDateInputValue(d){
+    return d.toISOString().slice(0, 10);
+  }
+
+  // --- Presets de rango de fechas -------------------------------------------------------
+  function aplicarPreset(preset){
+    document.querySelectorAll('.chip[data-preset]').forEach((c) => c.classList.toggle('active', c.dataset.preset === preset));
+    const hoy = new Date();
+    if (preset === 'todo') {
+      fDesde.value = '';
+      fHasta.value = '';
+    } else if (preset === 'hoy') {
+      fDesde.value = toDateInputValue(hoy);
+      fHasta.value = toDateInputValue(hoy);
+    } else {
+      const dias = parseInt(preset, 10);
+      const desde = new Date(hoy.getTime() - (dias - 1) * 24 * 60 * 60 * 1000);
+      fDesde.value = toDateInputValue(desde);
+      fHasta.value = toDateInputValue(hoy);
+    }
+    cargar();
+  }
+  document.querySelectorAll('.chip[data-preset]').forEach((c) => {
+    c.addEventListener('click', () => aplicarPreset(c.dataset.preset));
+  });
+
+  // Cambiar las fechas a mano desmarca los chips de preset (para que no parezca que
+  // "Últimos 30 días" sigue activo con un rango distinto).
+  [fDesde, fHasta].forEach((el) => el.addEventListener('change', () => {
+    document.querySelectorAll('.chip[data-preset]').forEach((c) => c.classList.remove('active'));
+  }));
+
+  // --- Consulta a Firestore --------------------------------------------------------------
+  function cargar(){
+    estadoCargando.hidden = false;
+    estadoError.hidden = true;
+    estadoVacio.hidden = true;
+    tablaWrap.hidden = true;
+    statsEl.hidden = true;
+
+    let q = db.collection('registrosImpresion').orderBy('fecha_hora', 'desc');
+    if (fDesde.value) {
+      q = q.where('fecha_hora', '>=', firebase.firestore.Timestamp.fromDate(new Date(fDesde.value + 'T00:00:00')));
+    }
+    if (fHasta.value) {
+      q = q.where('fecha_hora', '<=', firebase.firestore.Timestamp.fromDate(new Date(fHasta.value + 'T23:59:59.999')));
+    }
+    q = q.limit(LIMITE_FILAS);
+
+    q.get().then((snap) => {
+      filasCrudas = snap.docs.map((d) => d.data());
+      notaLimite.hidden = filasCrudas.length < LIMITE_FILAS;
+      if (filasCrudas.length >= LIMITE_FILAS) {
+        notaLimite.textContent = `Mostrando los últimos ${LIMITE_FILAS} registros del rango elegido — acortá el rango de fechas para ver todo.`;
+      }
+      estadoCargando.hidden = true;
+      render();
+    }).catch((err) => {
+      estadoCargando.hidden = true;
+      estadoError.hidden = false;
+      estadoError.textContent = 'Error al consultar Firestore: ' + err.message +
+        (err.code === 'failed-precondition' ? ' (puede hacer falta crear un índice — el link para crearlo suele venir en la consola del navegador).' : '');
+      console.error(err);
+    });
+  }
+
+  // --- Filtro de resultado + texto libre, aplicado en memoria sobre filasCrudas ---------
+  function filasFiltradas(){
+    const resultado = fResultado.value;
+    const texto = fBuscar.value.trim().toLowerCase();
+    return filasCrudas.filter((r) => {
+      if (resultado && r.resultado !== resultado) return false;
+      if (texto) {
+        const enCliente = (r.nombre_cliente || '').toLowerCase().includes(texto);
+        const enArchivo = (r.archivo_nombre || '').toLowerCase().includes(texto);
+        if (!enCliente && !enArchivo) return false;
+      }
+      return true;
+    });
+  }
+
+  function render(){
+    const filas = filasFiltradas();
+
+    if (filas.length === 0) {
+      tablaWrap.hidden = true;
+      estadoVacio.hidden = false;
+      statsEl.hidden = filasCrudas.length === 0;
+    } else {
+      estadoVacio.hidden = true;
+      tablaWrap.hidden = false;
+      statsEl.hidden = false;
+    }
+
+    // Stats sobre lo filtrado (así "Buscar" y "Resultado" también actualizan los números).
+    const total = filas.length;
+    const exitos = filas.filter((r) => r.resultado === 'exito').length;
+    const errores = total - exitos;
+    const importeTotal = filas.reduce((acc, r) => acc + (typeof r.importe === 'number' ? r.importe : 0), 0);
+    $('s-total').textContent = total;
+    $('s-exitos').textContent = exitos;
+    $('s-errores').textContent = errores;
+    $('s-tasa').textContent = total ? Math.round((exitos / total) * 100) + '%' : '—';
+    $('s-importe').textContent = fmtImporte(importeTotal);
+
+    tbody.innerHTML = filas.map((r) => {
+      const esExito = r.resultado === 'exito';
+      const badge = esExito
+        ? '<span class="badge exito">Éxito</span>'
+        : '<span class="badge error">Error · ' + escapeHtml(r.codigo_error || 'desconocido') + '</span>';
+      const reembolsoBadge = (!esExito && r.reembolsado)
+        ? '<span class="badge reembolsado">Reembolsado</span>' : '';
+      const detalleError = (!esExito && r.mensaje_error_detalle)
+        ? '<div class="err-detalle">' + escapeHtml(r.mensaje_error_detalle) + '</div>' : '';
+      return `
+        <tr>
+          <td class="mono">${fmtFecha(r.fecha_hora)}</td>
+          <td class="cliente">${escapeHtml(r.nombre_cliente) || '—'}</td>
+          <td><div>${escapeHtml(r.archivo_nombre) || '—'}</div><div class="archivo">${r.duplex ? 'doble faz' : 'simple faz'}</div></td>
+          <td class="num">${r.paginas != null ? r.paginas : '—'}</td>
+          <td class="num">${r.copias != null ? r.copias : '—'}</td>
+          <td class="num mono">${fmtImporte(r.importe)}</td>
+          <td>${badge}${reembolsoBadge}${detalleError}</td>
+          <td>${escapeHtml(r.impresora) || '—'}</td>
+          <td class="num mono">${fmtDuracion(r.duracion_ms)}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  fResultado.addEventListener('change', render);
+  fBuscar.addEventListener('input', render);
+  $('btn-refrescar').addEventListener('click', cargar);
+
+  // --- Exportar CSV de lo que se ve filtrado en pantalla ----------------------------------
+  $('btn-csv').addEventListener('click', () => {
+    const filas = filasFiltradas();
+    const encabezados = ['fecha_hora','nombre_cliente','archivo_nombre','paginas','copias','duplex','importe','resultado','codigo_error','mensaje_error_detalle','pago_id','impresora','duracion_ms','reembolsado','sesion_id'];
+    const csvEscape = (v) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lineas = [encabezados.join(',')];
+    filas.forEach((r) => {
+      lineas.push(encabezados.map((campo) => {
+        if (campo === 'fecha_hora') return csvEscape(fmtFecha(r.fecha_hora));
+        return csvEscape(r[campo]);
+      }).join(','));
+    });
+    const blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'registrosImpresion_' + (fDesde.value || 'todo') + '_' + (fHasta.value || 'todo') + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // Arranque: preset de 30 días.
+  aplicarPreset('30');
+})();
+</script>

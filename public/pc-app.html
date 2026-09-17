@@ -343,6 +343,8 @@
   let configCentro = null; // último doc de config_centro/{CENTRO_ID}, para leer impresora_nombre
   let sesionConImpresionIniciada = null; // evita re-disparar la impresión real en cada snapshot
   let desuscribirEventosImpresion = null;
+  let tiempoInicioImpresion = null; // Date.now() al disparar la impresión real — para duracion_ms en registrosImpresion
+  let nombreImpresoraUsada = null; // nombre exacto resuelto por el agente para el trabajo en curso, para el registro
   let trabajoActual = null; // último doc de trabajos/{sesionId} — para mostrar nombre_cliente
   let unsubscribeTrabajoActual = null;
   let pagoTimer = null; // cooldown de 'pago_pendiente': si nadie paga a tiempo, la sesión expira
@@ -632,12 +634,14 @@
       if (evento.tipo === 'print-job:success') {
         db.collection('sesiones').doc(sesionId).update({ estado: 'listo' });
         db.collection('trabajos').doc(sesionId).set({ estado: 'impreso' }, { merge: true });
+        registrarImpresion(sesionId, { resultado: 'exito' });
       } else if (evento.tipo === 'print-job:error') {
         db.collection('sesiones').doc(sesionId).update({ estado: 'error' });
         db.collection('trabajos').doc(sesionId).set(
           { estado: 'error', error_tipo: evento.errorType, error_mensaje: evento.message },
           { merge: true }
         );
+        registrarImpresion(sesionId, { resultado: 'error', errorType: evento.errorType, message: evento.message });
       }
       // 'print-job:sent' / 'print-job:printing' no cambian el estado de la sesión — la
       // pantalla ya muestra "Imprimiendo tu documento" desde que entró a 'pagado'.
@@ -650,6 +654,8 @@
         return;
       }
       const rangoCompleto = trabajo.rango_desde === 1 && trabajo.rango_hasta === trabajo.cantidad_paginas_total;
+      const nombreImpresoraSolicitada = configCentro ? configCentro.impresora_nombre : undefined;
+      tiempoInicioImpresion = Date.now();
       window.agenteImpresion.imprimirTrabajo({
         sesionId,
         nombreArchivo: trabajo.nombre_archivo,
@@ -658,17 +664,61 @@
         rangoCompleto,
         copias: trabajo.copias,
         faz: trabajo.faz,
-        nombreImpresora: configCentro ? configCentro.impresora_nombre : undefined,
+        nombreImpresora: nombreImpresoraSolicitada,
       }).then((resultado) => {
+        nombreImpresoraUsada = (resultado && resultado.nombreImpresora) || nombreImpresoraSolicitada || null;
         if (!resultado || !resultado.ok) {
           // No llegó a arrancar (faltaban datos, no hay impresora, etc.) — no va a llegar
           // ningún evento IPC después de esto, así que marcamos el error acá directamente.
+          const errorType = resultado ? resultado.errorType : 'desconocido';
+          const message = resultado ? resultado.message : 'Sin respuesta del agente de impresión.';
           db.collection('sesiones').doc(sesionId).update({ estado: 'error' });
           db.collection('trabajos').doc(sesionId).set(
-            { estado: 'error', error_tipo: resultado ? resultado.errorType : 'desconocido', error_mensaje: resultado ? resultado.message : 'Sin respuesta del agente de impresión.' },
+            { estado: 'error', error_tipo: errorType, error_mensaje: message },
             { merge: true }
           );
+          registrarImpresion(sesionId, { resultado: 'error', errorType, message });
         }
+      });
+    });
+  }
+
+  // Escribe un documento en registrosImpresion — uno por cada intento de impresión (éxito o
+  // error), para auditoría/estadística del panel de admin (pendiente de construir). Se llama
+  // desde los tres puntos donde iniciarImpresionSiHaceFalta ya resuelve el resultado final de
+  // un trabajo, así que no duplica lógica de detección de éxito/error, solo la registra.
+  // Relee trabajos/{sesionId} y pagos/{sesionId} en vez de capturarlos por closure porque en
+  // el caso de error inmediato (resultado.ok === false del agente) todavía no hay garantía de
+  // qué tan fresco está lo que se cargó antes — más simple y confiable volver a pedirlos acá.
+  function registrarImpresion(sesionId, { resultado, errorType, message }) {
+    const duracionMs = tiempoInicioImpresion ? Date.now() - tiempoInicioImpresion : null;
+    Promise.all([
+      db.collection('trabajos').doc(sesionId).get(),
+      db.collection('pagos').doc(sesionId).get(),
+    ]).then(([trabajoDoc, pagoDoc]) => {
+      const trabajo = trabajoDoc.data() || {};
+      const pago = pagoDoc.data() || {};
+      db.collection('registrosImpresion').add({
+        sesion_id: sesionId,
+        centro_id: CENTRO_ID,
+        nombre_cliente: trabajo.nombre_cliente || null,
+        importe: typeof pago.monto === 'number' ? pago.monto : (trabajo.precio || null),
+        fecha_hora: firebase.firestore.Timestamp.now(),
+        resultado,
+        codigo_error: resultado === 'error' ? (errorType || 'desconocido') : null,
+        mensaje_error_detalle: resultado === 'error' ? (message || null) : null,
+        pago_id: pago.mp_payment_id || null,
+        archivo_nombre: trabajo.nombre_archivo || null,
+        paginas: trabajo.cantidad_paginas_total || null,
+        copias: trabajo.copias || null,
+        color: false, // el flujo real todavía no ofrece color (ver agente-impresion/main.js)
+        duplex: trabajo.faz === 'doble',
+        impresora: nombreImpresoraUsada,
+        duracion_ms: duracionMs,
+        reembolsado: resultado === 'error' ? false : null,
+        fecha_reembolso: null,
+      }).catch((err) => {
+        console.error('No se pudo escribir registrosImpresion', err);
       });
     });
   }

@@ -90,6 +90,40 @@ Usa el mismo ID que la sesión (relación 1 a 1), para no tener que hacer una qu
 }
 ```
 
+## `registrosImpresion/{registroId}`
+
+`registroId` autogenerado por Firestore. Log de auditoría: un documento por cada intento de
+impresión (éxito o error), escrito por `pc-app.html` (`registrarImpresion()`) apenas llega el
+resultado final del agente de impresión — no se sobrescribe nada, un reintento genera otro
+documento (filtrable por `sesion_id`).
+
+```
+{
+  sesion_id: "...",           // referencia a sesiones/{sesionId} (y trabajos/{sesionId}, mismo id)
+  centro_id: "principal",
+  nombre_cliente: "",         // copiado de trabajos/{sesionId}.nombre_cliente al momento del intento
+  importe: 1500,              // pagos/{sesionId}.monto (confirmado por el webhook) si existe,
+                                // si no cae a trabajos/{sesionId}.precio
+  fecha_hora: Timestamp,      // momento en que se resuelve el intento (no cuando se envía a imprimir)
+  resultado: "exito",         // exito | error
+  codigo_error: null,         // solo si resultado = error — uno de TIPOS_ERROR (ver
+                                // agente-impresion/lib/impresion.js): sin_papel | atascada |
+                                // offline | timeout | driver_no_soporta_opcion | desconocido
+  mensaje_error_detalle: null,// solo si resultado = error — texto libre del agente
+  pago_id: null,               // pagos/{sesionId}.mp_payment_id, para reconciliar/reembolsar
+  archivo_nombre: "apunte.pdf",
+  paginas: 12,
+  copias: 1,
+  color: false,                // fijo por ahora — el flujo real no ofrece color todavía
+  duplex: false,                // trabajos/{sesionId}.faz === "doble"
+  impresora: "RICOH MP 501 PCL 6",  // nombre exacto resuelto por el agente para este trabajo
+  duracion_ms: 4200,           // desde que se dispara imprimirTrabajo() hasta el resultado final
+  reembolsado: false,          // solo tiene sentido si resultado = error; se edita a mano desde
+                                // la consola (no hay panel de admin todavía)
+  fecha_reembolso: null
+}
+```
+
 Ver `firestore.rules` y `storage.rules` para los permisos de lectura/escritura de cada
 colección — por ahora nadie del lado del cliente puede marcar una sesión/pago como pagado;
 eso queda reservado al webhook (Cloud Function con Admin SDK) que todavía no existe.
