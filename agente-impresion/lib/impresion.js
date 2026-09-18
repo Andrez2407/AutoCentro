@@ -34,6 +34,13 @@ const IMPRESORA_SNMP_COMMUNITY = process.env.IMPRESORA_SNMP_COMMUNITY || 'public
 const POLL_INTERVAL_MS = 1500; // 1-2s pedido en el prompt
 const TIMEOUT_MS = 75 * 1000; // dentro del rango 60-90s pedido en el prompt
 
+// Cuánto esperar DESPUÉS de que el spooler reportó "éxito" antes de volver a consultar por
+// SNMP una vez más — cubre el caso real que motivó todo esto: el trabajo sale de la cola
+// "sin errores" según Windows, pero la impresora en verdad se quedó sin papel a mitad de
+// camino y recién lo refleja unos segundos después. Solo corre si IMPRESORA_IP está
+// configurada (si no, no hay ninguna señal extra que consultar acá).
+const VERIFICACION_POST_IMPRESION_MS = 10 * 1000;
+
 // --- Taxonomía fija de errores ---------------------------------------------
 // Usada tanto acá como, más adelante, por el flujo real de sesiones — no cambiar los
 // valores sin actualizar también el lado que los consume.
@@ -300,6 +307,47 @@ async function consultarEstadoSnmpAhora() {
 }
 
 /**
+ * A los VERIFICACION_POST_IMPRESION_MS de haber avisado éxito, vuelve a consultar el
+ * estado por SNMP una vez más y emite un evento 'print-job:post-check' con el resultado.
+ * No bloquea nada (el trabajo ya se dio por terminado) — es una segunda opinión que llega
+ * un poco tarde a propósito, porque algunos problemas (como quedarse sin papel a mitad de
+ * un trabajo largo) la impresora los reporta con demora. Si IMPRESORA_IP no está
+ * configurada, no se programa nada (no hay señal que consultar).
+ *
+ * evento.ok: true (sigue todo bien), false (encontró un problema) o null (SNMP no
+ * respondió esta vez — no es ni éxito ni error, simplemente no hubo señal).
+ */
+function programarVerificacionPosterior(onEvento) {
+  if (!IMPRESORA_IP) return;
+  setTimeout(async () => {
+    const resultado = await consultarEstadoSnmpAhora();
+    if (!resultado.ok) {
+      onEvento({
+        tipo: 'print-job:post-check',
+        ok: null,
+        message: `No se pudo verificar el estado de la impresora después de imprimir (${resultado.motivo}).`,
+      });
+      return;
+    }
+    if (resultado.errorType) {
+      onEvento({
+        tipo: 'print-job:post-check',
+        ok: false,
+        errorType: resultado.errorType,
+        banderas: resultado.banderas,
+        message: `La impresora reporta un problema (${resultado.errorType}) ${VERIFICACION_POST_IMPRESION_MS / 1000}s después de que el trabajo salió de la cola — puede haber fallado igual aunque el spooler haya dicho "éxito".`,
+      });
+      return;
+    }
+    onEvento({
+      tipo: 'print-job:post-check',
+      ok: true,
+      message: `Verificación posterior (${VERIFICACION_POST_IMPRESION_MS / 1000}s después): la impresora sigue sin reportar problemas.`,
+    });
+  }, VERIFICACION_POST_IMPRESION_MS);
+}
+
+/**
  * Flujo completo: ejecuta SumatraPDF y después hace polling al spooler hasta resolver
  * éxito / error / timeout. Reporta cada cambio de estado a través de onEvento.
  *
@@ -454,6 +502,7 @@ async function imprimir(opciones, onEvento) {
         return;
       }
       onEvento({ tipo: 'print-job:success', message: 'El trabajo salió de la cola sin errores reportados.' });
+      programarVerificacionPosterior(onEvento);
       return;
     } else if ((printerStatusNum & PRINTER_STATUS_PROBLEMA) || problemaSnmp) {
       // Nunca llegó a aparecer en la cola y la impresora (o el SNMP) ya reporta un problema.

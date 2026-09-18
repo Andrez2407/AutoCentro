@@ -344,6 +344,16 @@
         agregarLog('log-error', `Error: ${evento.errorType} — ${evento.message}`);
         elBtnImprimir.disabled = false;
         break;
+      case 'print-job:post-check':
+        if (evento.ok === false) {
+          agregarLog('log-error', `Verificación posterior — ${evento.message}`);
+          setEstado(`Revisar: posible ${evento.errorType} tras imprimir`, 'err');
+        } else if (evento.ok === true) {
+          agregarLog('log-success', `Verificación posterior — ${evento.message}`);
+        } else {
+          agregarLog('log-sent', `Verificación posterior — ${evento.message}`);
+        }
+        break;
     }
   });
 

@@ -372,6 +372,7 @@
   let desuscribirEventosImpresion = null;
   let tiempoInicioImpresion = null; // Date.now() al disparar la impresión real — para duracion_ms en registrosImpresion
   let nombreImpresoraUsada = null; // nombre exacto resuelto por el agente para el trabajo en curso, para el registro
+  let refRegistroImpresionActual = null; // DocumentReference del último registrosImpresion.add(), para poder anotarle la verificación posterior de SNMP (print-job:post-check)
   let trabajoActual = null; // último doc de trabajos/{sesionId} — para mostrar nombre_cliente
   let unsubscribeTrabajoActual = null;
   let pagoTimer = null; // cooldown de 'pago_pendiente': si nadie paga a tiempo, la sesión expira
@@ -669,6 +670,26 @@
           { merge: true }
         );
         registrarImpresion(sesionId, { resultado: 'error', errorType: evento.errorType, message: evento.message });
+      } else if (evento.tipo === 'print-job:post-check') {
+        // Segunda consulta SNMP ~10s después del éxito (ver programarVerificacionPosterior
+        // en agente-impresion/lib/impresion.js) — cubre el caso real de un trabajo que el
+        // spooler dio por bueno pero la impresora reporta un problema poco después. NO
+        // revertimos el estado de la sesión (el cliente ya pudo haber visto "listo"): solo
+        // dejamos constancia en registrosImpresion y, si hay un problema, mostramos el
+        // aviso fijo de la impresora al toque en vez de esperar al próximo ciclo de 15s.
+        if (evento.ok === false) {
+          actualizarBannerImpresora({ errorType: evento.errorType });
+          if (refRegistroImpresionActual) {
+            refRegistroImpresionActual.update({
+              verificacion_post_impresion: 'problema',
+              verificacion_post_impresion_tipo: evento.errorType || 'desconocido',
+              verificacion_post_impresion_detalle: evento.message || null,
+            }).catch((err) => console.error('No se pudo anotar la verificación post-impresión', err));
+          }
+        } else if (evento.ok === true && refRegistroImpresionActual) {
+          refRegistroImpresionActual.update({ verificacion_post_impresion: 'ok' }).catch(() => {});
+        }
+        // evento.ok === null (SNMP no respondió esta vez) -> no hay señal, no anotamos nada.
       }
       // 'print-job:sent' / 'print-job:printing' no cambian el estado de la sesión — la
       // pantalla ya muestra "Imprimiendo tu documento" desde que entró a 'pagado'.
@@ -744,6 +765,10 @@
         duracion_ms: duracionMs,
         reembolsado: resultado === 'error' ? false : null,
         fecha_reembolso: null,
+      }).then((ref) => {
+        // Guardamos la referencia para poder anotarle encima el resultado de la
+        // verificación SNMP tardía (print-job:post-check), si llega.
+        refRegistroImpresionActual = ref;
       }).catch((err) => {
         console.error('No se pudo escribir registrosImpresion', err);
       });

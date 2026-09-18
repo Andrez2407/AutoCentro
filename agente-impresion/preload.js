@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('agenteImpresion', {
       'print-job:printing',
       'print-job:success',
       'print-job:error',
+      // Verificación SNMP tardía (~10s después del éxito) — ver programarVerificacionPosterior
+      // en lib/impresion.js. payload: { ok: true|false|null, errorType?, banderas?, message }.
+      'print-job:post-check',
     ];
     const listeners = canales.map((canal) => {
       const listener = (_event, payload) => callback({ tipo: canal, ...payload });
