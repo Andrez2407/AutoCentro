@@ -354,13 +354,64 @@
     atascada: 'La impresora tiene un papel atascado (o una tapa abierta) — avisá en el mostrador.',
     offline: 'La impresora está fuera de línea — avisá en el mostrador.',
   };
+  // true mientras el SNMP reporta sin_papel/atascada/offline — mientras esté activo, la
+  // pantalla de espera ('idle') no ofrece el QR: mostramos un cartel de mantenimiento en su
+  // lugar, para no dejar que alguien pague por algo que no se va a poder imprimir. No
+  // interrumpe una sesión que ya esté más adelante en el flujo (ya escaneó/pagó/imprimiendo) —
+  // eso lo sigue manejando el error normal de impresión si corresponde.
+  let problemaImpresoraActivo = false;
+  let idleSesionIdActual = null; // sesionId de la sesión 'idle' mostrada ahora, para re-pintar sin depender de un nuevo snapshot
+  let idleTokenActual = null; // token_qr de esa misma sesión
+
   function actualizarBannerImpresora(payload){
     const mensaje = payload && payload.errorType ? MENSAJES_ERROR_IMPRESORA[payload.errorType] : null;
     impresoraBanner.hidden = !mensaje;
     if (mensaje) impresoraBanner.textContent = mensaje;
+
+    const nuevoProblema = !!mensaje;
+    if (nuevoProblema !== problemaImpresoraActivo) {
+      problemaImpresoraActivo = nuevoProblema;
+      // Si en este momento se está mostrando la pantalla de espera, la re-pintamos al toque
+      // (QR <-> cartel de mantenimiento) sin esperar un nuevo snapshot de Firestore.
+      if (estadoActual === 'idle' && idleSesionIdActual) {
+        pintarPantallaIdle(idleSesionIdActual, idleTokenActual);
+      }
+    }
   }
   if (window.agenteImpresion && window.agenteImpresion.onEstadoImpresora) {
     window.agenteImpresion.onEstadoImpresora(actualizarBannerImpresora);
+  }
+  // Consulta inicial al arrancar la app: no esperamos al primer ciclo del monitoreo de
+  // fondo (hasta 15s) para saber si la impresora ya tenía un problema desde antes.
+  if (window.agenteImpresion && window.agenteImpresion.consultarEstadoImpresoraAhora) {
+    window.agenteImpresion.consultarEstadoImpresoraAhora().then((resultado) => {
+      if (resultado && resultado.ok) actualizarBannerImpresora({ errorType: resultado.errorType });
+    });
+  }
+
+  // Dibuja la pantalla 'idle': el QR de siempre, o —si problemaImpresoraActivo— un cartel de
+  // mantenimiento en su lugar, sin QR, para no dejar arrancar un pedido nuevo mientras la
+  // impresora esté con un problema real conocido.
+  function pintarPantallaIdle(sesionId, token){
+    if (problemaImpresoraActivo) {
+      setStatus('st-danger', 'Impresora en mantenimiento');
+      setBody(`
+        <div class="icon-circle c-danger">!</div>
+        <div class="screen-title">Impresora en mantenimiento</div>
+        <div class="screen-sub">Por ahora no podemos recibir pedidos nuevos. Avisá en el mostrador o esperá un momento.</div>
+      `);
+      return;
+    }
+    setStatus('st-neutral', 'En espera');
+    const url = MOBILE_APP_URL + '?s=' + sesionId + '&t=' + token;
+    setBody(`
+      <div class="qr-wrap" id="qr-canvas"></div>
+      <div class="screen-title">Escaneá para imprimir</div>
+      <div class="screen-sub">Abrí la cámara de tu celular y apuntá al código para empezar tu pedido.</div>
+    `);
+    if (window.QRCode) {
+      new QRCode(document.getElementById('qr-canvas'), { text: url, width: 400, height: 400, correctLevel: QRCode.CorrectLevel.M });
+    }
   }
 
   let unsubscribeSesion = null;
@@ -543,17 +594,12 @@
     }
     switch (data.estado) {
       case 'idle': {
-        setStatus('st-neutral', 'En espera');
-        const url = MOBILE_APP_URL + '?s=' + sesionId + '&t=' + token;
-        setBody(`
-          <div class="qr-wrap" id="qr-canvas"></div>
-          <div class="screen-title">Escaneá para imprimir</div>
-          <div class="screen-sub">Abrí la cámara de tu celular y apuntá al código para empezar tu pedido.</div>
-        `);
-        if (window.QRCode) {
-          new QRCode(document.getElementById('qr-canvas'), { text: url, width: 400, height: 400, correctLevel: QRCode.CorrectLevel.M });
-        }
-        // Si nadie escanea en 3 min, expira y se crea una sesión nueva.
+        idleSesionIdActual = sesionId;
+        idleTokenActual = token;
+        pintarPantallaIdle(sesionId, token);
+        // Si nadie escanea en 3 min, expira y se crea una sesión nueva (esto sigue
+        // corriendo igual aunque esté en mantenimiento — cuando se resuelva el problema,
+        // ya va a haber una sesión 'idle' fresca lista para mostrar el QR).
         const msLeft = data.expires_at.toMillis() - Date.now();
         idleTimer = setTimeout(() => {
           db.collection('sesiones').doc(sesionId).update({ estado: 'expirada' });
@@ -917,6 +963,27 @@
     db.collection('sesiones').doc(sesionIdActual).update({
       estado: 'pagado',
       updated_at: firebase.firestore.Timestamp.now()
+    });
+  });
+
+  // ---- Atajo de teclado "R": forzar una consulta SNMP del estado de la impresora ahora
+  // mismo, sin esperar el próximo ciclo de 15s del monitoreo de fondo — útil para confirmar
+  // al toque que ya se solucionó un problema (o para probar la detección a propósito).
+  document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'r') return;
+    if (!window.agenteImpresion || !window.agenteImpresion.consultarEstadoImpresoraAhora) return;
+    impresoraBanner.hidden = false;
+    impresoraBanner.textContent = 'Verificando estado de la impresora…';
+    window.agenteImpresion.consultarEstadoImpresoraAhora().then((resultado) => {
+      if (!resultado.ok) {
+        console.warn('[R] No se pudo consultar la impresora por SNMP:', resultado.motivo);
+        impresoraBanner.textContent = `No se pudo verificar la impresora (${resultado.motivo})`;
+        setTimeout(() => {
+          if (!problemaImpresoraActivo) impresoraBanner.hidden = true;
+        }, 4000);
+        return;
+      }
+      actualizarBannerImpresora({ errorType: resultado.errorType });
     });
   });
 })();
