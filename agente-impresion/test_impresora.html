@@ -178,12 +178,25 @@
   </div>
 
   <div class="panel">
+    <h2>5. Estado de la impresora (SNMP)</h2>
+    <p class="aviso">
+      Consulta el estado real de la impresora por SNMP en el momento (no espera al monitoreo
+      de fondo ni a un intento de impresión). Requiere que la app se haya arrancado con
+      <code>IMPRESORA_IP</code> configurada.
+    </p>
+    <div class="fila">
+      <button id="btn-consultar-snmp">Consultar estado ahora</button>
+      <span id="estado-snmp"></span>
+    </div>
+  </div>
+
+  <div class="panel">
     <h2>Log de estado en vivo</h2>
     <div id="log"></div>
   </div>
 
 <script>
-  const { seleccionarPdf, listarImpresoras, imprimir, onEventoImpresion } = window.agenteImpresion;
+  const { seleccionarPdf, listarImpresoras, imprimir, onEventoImpresion, consultarEstadoImpresoraAhora } = window.agenteImpresion;
 
   let rutaPdfElegida = null;
 
@@ -194,6 +207,8 @@
   const elBtnImprimir = document.getElementById('btn-imprimir');
   const elEstadoActual = document.getElementById('estado-actual');
   const elLog = document.getElementById('log');
+  const elBtnConsultarSnmp = document.getElementById('btn-consultar-snmp');
+  const elEstadoSnmp = document.getElementById('estado-snmp');
 
   function agregarLog(claseCss, texto) {
     const hora = new Date().toLocaleTimeString('es-AR', { hour12: false });
@@ -282,6 +297,31 @@
       agregarLog('log-error', `Error — ${resultado.errorType}: ${resultado.message}`);
     }
     // Si arrancó bien, el resto de los estados llega por los eventos IPC de abajo.
+  });
+
+  elBtnConsultarSnmp.addEventListener('click', async () => {
+    elBtnConsultarSnmp.disabled = true;
+    elEstadoSnmp.textContent = '';
+    elEstadoSnmp.className = '';
+    agregarLog('log-sent', 'Consultando estado por SNMP…');
+
+    const resultado = await consultarEstadoImpresoraAhora();
+
+    if (!resultado.ok) {
+      elEstadoSnmp.textContent = `Sin respuesta: ${resultado.motivo}`;
+      elEstadoSnmp.className = 'badge badge-warn';
+      agregarLog('log-error', `SNMP no disponible — ${resultado.motivo}`);
+    } else if (resultado.errorType) {
+      elEstadoSnmp.textContent = `Problema detectado: ${resultado.errorType}`;
+      elEstadoSnmp.className = 'badge badge-err';
+      agregarLog('log-error', `SNMP reporta un problema (${resultado.errorType}) — banderas: ${JSON.stringify(resultado.banderas)}`);
+    } else {
+      elEstadoSnmp.textContent = 'Sin problemas reportados';
+      elEstadoSnmp.className = 'badge badge-ok';
+      agregarLog('log-success', `SNMP respondió sin problemas bloqueantes — banderas: ${JSON.stringify(resultado.banderas)}`);
+    }
+
+    elBtnConsultarSnmp.disabled = false;
   });
 
   onEventoImpresion((evento) => {

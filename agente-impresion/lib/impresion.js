@@ -281,6 +281,25 @@ async function chequearProblemaSnmp() {
 }
 
 /**
+ * Consulta el estado de la impresora por SNMP AHORA MISMO, a pedido (botón "Consultar
+ * estado" en test_impresora.html) — a diferencia de chequearProblemaSnmp(), esta devuelve
+ * el resultado completo (ok/motivo, banderas, errorType) aunque no haya ningún problema
+ * bloqueante, para poder mostrarlo en la UI y confirmar que la consulta efectivamente
+ * llegó a responder (en vez de esperar a que corra dentro de un intento de impresión).
+ */
+async function consultarEstadoSnmpAhora() {
+  if (!IMPRESORA_IP) {
+    return { ok: false, motivo: 'IMPRESORA_IP no está configurada (variable de entorno).' };
+  }
+  const resultado = await consultarEstadoSnmp(IMPRESORA_IP, { community: IMPRESORA_SNMP_COMMUNITY });
+  if (!resultado.ok) {
+    return { ok: false, motivo: resultado.motivo };
+  }
+  const errorType = clasificarBanderasSnmp(resultado.banderas);
+  return { ok: true, banderas: resultado.banderas, errorType };
+}
+
+/**
  * Flujo completo: ejecuta SumatraPDF y después hace polling al spooler hasta resolver
  * éxito / error / timeout. Reporta cada cambio de estado a través de onEvento.
  *
@@ -462,5 +481,7 @@ module.exports = {
   imprimir,
   SUMATRA_PATH,
   clasificarBanderasSnmp,
+  consultarEstadoSnmpAhora,
   IMPRESORA_IP,
+  IMPRESORA_SNMP_COMMUNITY,
 };

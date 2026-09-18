@@ -11,7 +11,7 @@
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { imprimir, TIPOS_ERROR, IMPRESORA_IP, clasificarBanderasSnmp } = require('./lib/impresion');
+const { imprimir, TIPOS_ERROR, IMPRESORA_IP, clasificarBanderasSnmp, consultarEstadoSnmpAhora } = require('./lib/impresion');
 const { descargarArchivo } = require('./lib/descarga');
 const { consultarEstadoSnmp } = require('./lib/snmp-impresora');
 
@@ -127,6 +127,16 @@ ipcMain.handle('impresoras:listar', async () => {
     esPredeterminada: !!p.isDefault,
     estado: p.status,
   }));
+});
+
+// --- IPC: consultar el estado de la impresora por SNMP A PEDIDO ---------------
+// A diferencia de monitorearImpresoraEnSegundoPlano() (que corre solo, cada 15s, y no
+// avisa nada acá en modo test), esto lo dispara un botón en test_impresora.html para
+// poder confirmar en el momento si SNMP está respondiendo y qué banderas reporta —
+// útil para diagnosticar sin tener que esperar un ciclo del monitor de fondo ni mandar
+// un trabajo de impresión real.
+ipcMain.handle('impresora:consultar-ahora', async () => {
+  return consultarEstadoSnmpAhora();
 });
 
 // --- IPC: disparar el flujo completo de impresión -----------------------------

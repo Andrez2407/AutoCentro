@@ -56,4 +56,10 @@ contextBridge.exposeInMainWorld('agenteImpresion', {
     ipcRenderer.on('impresora:estado', listener);
     return () => ipcRenderer.removeListener('impresora:estado', listener);
   },
+
+  // Consulta el estado de la impresora por SNMP AHORA MISMO (a pedido, botón en
+  // test_impresora.html). Devuelve { ok:false, motivo } si IMPRESORA_IP no está
+  // configurada o SNMP no respondió, o { ok:true, banderas, errorType } si respondió
+  // (errorType es null si no hay ningún problema bloqueante).
+  consultarEstadoImpresoraAhora: () => ipcRenderer.invoke('impresora:consultar-ahora'),
 });
