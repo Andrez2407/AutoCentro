@@ -82,18 +82,36 @@ habilitado en Windows. La impresora sí expone su estado real por **SNMP**, de f
 (no depende del driver ni de Windows), así que `lib/snmp-impresora.js` la consulta directo
 por red como señal extra.
 
-**Cómo activarlo:** seteá estas variables de entorno antes de arrancar la app (`npm run
-kiosco` o `npm start`) —si no están, todo sigue funcionando igual que antes, solo sin esta
-señal extra:
+**Cómo activarlo:** hay dos formas, y se puede usar cualquiera de las dos (las variables de
+entorno, si están, ganan sobre el archivo):
 
-- `IMPRESORA_IP` — la IP de la impresora en la red local (ej: `192.168.1.50`). Sin esto, no
-  se hace ninguna consulta SNMP. Se puede ver en el propio panel de la impresora (Configuración
-  de red / TCP-IP), en una página de configuración impresa desde el menú de la impresora, o en
+1. **`agente-impresion/config.json`** (recomendado — es el que usa el acceso directo del
+   escritorio, sin tener que escribir nada en una terminal cada vez):
+   ```json
+   {
+     "impresora_ip": "192.168.2.120",
+     "impresora_snmp_community": "public"
+   }
+   ```
+   Para cambiar la IP de la impresora de forma permanente, se edita este archivo con
+   cualquier editor de texto (Bloc de notas sirve) y se guarda — no hace falta reinstalar
+   nada ni tocar código. Si el archivo no existe o no se puede leer, simplemente no hay
+   valores por defecto (como si no estuviera configurado nada).
+2. **Variables de entorno** `IMPRESORA_IP` / `IMPRESORA_SNMP_COMMUNITY`, seteadas antes de
+   arrancar la app (`npm run kiosco` o `npm start`) — útil para probar con otra IP puntual
+   sin tocar `config.json`. Si están seteadas, pisan lo que diga el archivo.
+
+Si ninguna de las dos está configurada, todo sigue funcionando igual que antes, solo sin
+esta señal extra (no rompe nada).
+
+- `impresora_ip` / `IMPRESORA_IP` — la IP de la impresora en la red local (ej:
+  `192.168.1.50`). Se puede ver en el propio panel de la impresora (Configuración de red /
+  TCP-IP), en una página de configuración impresa desde el menú de la impresora, o en
   Windows: Panel de control → Dispositivos e impresoras → Propiedades → pestaña Puertos →
   "Configurar puerto" (ahí figura la IP del puerto TCP/IP).
-- `IMPRESORA_SNMP_COMMUNITY` — el community string de solo lectura (default: `public`, que es
-  el valor de fábrica de la gran mayoría de las impresoras — solo hace falta tocar esto si
-  alguien lo cambió a propósito).
+- `impresora_snmp_community` / `IMPRESORA_SNMP_COMMUNITY` — el community string de solo
+  lectura (default: `public`, que es el valor de fábrica de la gran mayoría de las
+  impresoras — solo hace falta tocar esto si alguien lo cambió a propósito).
 
 **Dónde se usa esta señal:**
 
@@ -177,6 +195,7 @@ punto exacto a tocar cuando se saquen):
 ```
 agente-impresion/
 ├── package.json
+├── config.json          # IP/community de la impresora para SNMP (ver sección de arriba)
 ├── main.js              # proceso principal: ventana + handlers IPC + monitoreo SNMP de fondo
 ├── preload.js            # puente IPC (contextBridge) entre main y renderer
 ├── test_impresora.html   # página de test (selector de PDF, impresora, opciones, log)

@@ -28,8 +28,31 @@ const SUMATRA_PATH =
 // (Get-Printer/Get-PrintJob) puede reportar "todo normal" aunque la impresora esté
 // físicamente sin papel, así que esta es una segunda señal independiente. Si no está
 // configurada, simplemente no se hace esta consulta extra (no rompe nada).
-const IMPRESORA_IP = process.env.IMPRESORA_IP || null;
-const IMPRESORA_SNMP_COMMUNITY = process.env.IMPRESORA_SNMP_COMMUNITY || 'public';
+//
+// Se lee de dos lugares, en este orden de prioridad:
+//   1. Variables de entorno IMPRESORA_IP / IMPRESORA_SNMP_COMMUNITY (para poder pisarlas
+//      puntualmente al testear, sin tocar ningún archivo).
+//   2. agente-impresion/config.json (ver leerConfigLocal más abajo) — este es el valor que
+//      se usa siempre que se abre la app con el acceso directo del escritorio, sin tener que
+//      escribir nada en una terminal cada vez. Para cambiar la IP de la impresora de forma
+//      permanente, se edita ese archivo (no hace falta tocar código).
+const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
+
+function leerConfigLocal() {
+  try {
+    const contenido = fs.readFileSync(CONFIG_PATH, 'utf8');
+    return JSON.parse(contenido);
+  } catch (err) {
+    // Sin config.json (o mal formado) no es un error fatal — simplemente no hay valores por
+    // defecto y hace falta setear las variables de entorno como antes.
+    return {};
+  }
+}
+
+const configLocal = leerConfigLocal();
+const IMPRESORA_IP = process.env.IMPRESORA_IP || configLocal.impresora_ip || null;
+const IMPRESORA_SNMP_COMMUNITY =
+  process.env.IMPRESORA_SNMP_COMMUNITY || configLocal.impresora_snmp_community || 'public';
 
 const POLL_INTERVAL_MS = 1500; // 1-2s pedido en el prompt
 const TIMEOUT_MS = 75 * 1000; // dentro del rango 60-90s pedido en el prompt
